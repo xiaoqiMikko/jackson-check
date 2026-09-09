@@ -23,7 +23,7 @@ import java.util.Set;
  */
 public final class Main {
 
-    private static final String VERSION = "0.1.0";
+    private static final String VERSION = "0.1.1";
 
     /** 退出码:0 = 没有版本命中;2 = 版本命中但源码里没找到触发条件;3 = 触发条件也成立。 */
     private static final int EXIT_CLEAN = 0;
