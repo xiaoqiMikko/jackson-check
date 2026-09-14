@@ -37,6 +37,11 @@ public final class Triggers {
         put("readTree", "\\breadTree\\s*\\(", "ObjectMapper.readTree()");
         put("JsonNode", "\\bJsonNode\\b", "JsonNode 类型");
         put("record", "\\brecord\\s+[A-Z]\\w*\\s*\\(", "Java Record 声明");
+        put("XMLDatatype", "\\bXMLGregorianCalendar\\b|\\bjavax\\.xml\\.datatype\\.(?:Duration\\b|\\*)", "javax.xml.datatype.Duration / XMLGregorianCalendar");
+        put("NioPath", "\\bjava\\.nio\\.file\\.(?:Path\\b|\\*)", "java.nio.file.Path 类型");
+        put("FS_PROVIDER", "(?!)", "依赖里注册了第三方 FileSystemProvider(扫构件,不扫源码)");
+        put("InetAddress", "\\bInetAddress\\b", "java.net.InetAddress 类型");
+        put("ComparableProp", "\\bComparable\\s*(?:<[^>]*>)?\\s+\\w+\\s*[;=]", "Comparable 类型的字段声明");
         put("ObjectMapper", "\\bObjectMapper\\b", "ObjectMapper(是否用到 jackson 的上锚)");
     }
 

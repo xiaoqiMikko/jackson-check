@@ -65,7 +65,15 @@ public record Cve(
         /** 标题(GitHub advisory 的 summary 原文) */
         String title,
         /** 描述原文的第一句(英文原句,非转述) */
-        String desc) {
+        String desc,
+        /**
+         * GitHub <b>全局</b> advisory 库有没有收录这条 —— Dependabot 按它告警。
+         *
+         * <p>🔴 2026-09-14(v0.2.0)实测:08-21 / 09-01 发布的 4 条只在 FasterXML 仓库页面上有,
+         * 全局库按 GHSA 号查 404,按坐标反查也查不到。<b>装着受影响版本,Dependabot 也不会报。</b>
+         * 此前的条目发布后 5~11 天就进了全局库,这 4 条到 09-14 已 13~24 天。
+         */
+        boolean inGlobalDb) {
 
     /** 报告里显示的编号:有 CVE 号用 CVE 号,没有就用 GHSA 号。 */
     public String displayId() {

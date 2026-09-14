@@ -66,6 +66,21 @@ public final class Scanner {
     private final List<String> warnings = new ArrayList<>();
 
     /**
+     * 构件里注册的 {@code java.nio.file.spi.FileSystemProvider}(v0.2.0 加,给 CVE-2026-19032 用)。
+     *
+     * <p>🔴 advisory 原文:只有 JDK 自带 provider(file、jar/zipfs)时,Path 反序列化的结果是无害的;
+     * 要产生挂载、网络 I/O 等副作用,<b>classpath 上必须有第三方 provider</b>。
+     * JDK 自带的 provider 在 JDK 模块里,不在任何 jar 中 —— 所以扫构件时找到的一律是第三方的。
+     * <p>⚠️ 只看得见你传进来的构件;运行时由容器 / agent 额外加进 classpath 的看不见。
+     */
+    private final List<String> fsProviders = new ArrayList<>();
+
+    /** 扫到的第三方 FileSystemProvider,形如「类名  (所在 jar)」。 */
+    public List<String> fileSystemProviders() {
+        return fsProviders;
+    }
+
+    /**
      * 有多少个文件是「读不动」的(不是 zip / 截断 / IO 失败)。
      *
      * <p>🔴 它存在的理由是退出码:留痕是给人看的,而 CI 与脚本看的是退出码 ——
@@ -184,6 +199,15 @@ public final class Scanner {
                     String c = readCoord(zis.readAllBytes());
                     if (c != null) {
                         coords.add(c);
+                    }
+                } else if ("meta-inf/services/java.nio.file.spi.filesystemprovider".equals(lower)) {
+                    for (String line : new String(zis.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
+                            .split("\\R")) {
+                        int hash = line.indexOf('#');
+                        String cls = (hash >= 0 ? line.substring(0, hash) : line).trim();
+                        if (!cls.isEmpty()) {
+                            fsProviders.add(cls + "  (" + path + ")");
+                        }
                     }
                 } else if ("meta-inf/manifest.mf".equals(lower)) {
                     String[] mf = readManifest(zis);

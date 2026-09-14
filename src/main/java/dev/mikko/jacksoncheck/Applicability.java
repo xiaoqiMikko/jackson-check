@@ -82,6 +82,16 @@ public final class Applicability {
      * @param src      源码扫描结果;为 null 表示这次没扫源码(此时不做降噪,一律按版本判)
      */
     public static Verdict judge(Cve cve, List<Scanner.Artifact> scanned, SourceScan src) {
+        return judge(cve, scanned, src, List.of());
+    }
+
+    /**
+     * 同上,并带上构件里扫到的第三方 FileSystemProvider。
+     *
+     * <p>标记 {@code FS_PROVIDER} 不在源码里找,由它决定(CVE-2026-19032:只有 JDK 自带 provider 时无害)。
+     */
+    public static Verdict judge(Cve cve, List<Scanner.Artifact> scanned, SourceScan src,
+                                List<String> fsProviders) {
         // 第一步:版本。同一个 groupId 可能扫到多份(fat jar 里一份、WEB-INF/lib 里又一份)。
         // 🔴 **任一份命中即命中** —— 挑其中一份来判会漏:老 WAR 里塞着两代 jar 时,
         //    拿新的那份判成安全,而老的那份明明中。
@@ -115,7 +125,8 @@ public final class Applicability {
                     "本次未扫描源码,降噪这一步没做 —— 不是「部分成立」,是没有依据");
         }
         for (String m : cve.markers()) {
-            (src.hasMarker(m) ? found : missing).add(m);
+            boolean has = FS_PROVIDER.equals(m) ? !fsProviders.isEmpty() : src.hasMarker(m);
+            (has ? found : missing).add(m);
         }
         if (missing.isEmpty()) {
             return new Verdict(Kind.HIT, hit.version(), hit.path(), found, missing, "");
@@ -128,6 +139,9 @@ public final class Applicability {
                 "未在你的源码里找到触发条件(" + String.join("、", cve.markers()) + ")"
                         + " —— 🔴 这不等于安全,见报告末尾说明");
     }
+
+    /** 由构件扫描决定的标记名,与 gen_rules.py 的 MARKERS 同名。 */
+    static final String FS_PROVIDER = "FS_PROVIDER";
 
     private Applicability() {
     }

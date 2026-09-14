@@ -24,7 +24,8 @@ class CveTableTest {
     void tableIsNotEmpty() {
         assertTrue(CveTable.all().size() >= 30,
                 "只有 " + CveTable.all().size() + " 条规则 —— 生成八成失败了");
-        assertEquals(11, CveTable.OFFICIAL_TOTAL, "2026 年这批是 11 条");
+        // 08-07 首版是 11 条;08-21 / 09-01 又发了 4 条(v0.2.0,2026-09-14)
+        assertEquals(15, CveTable.OFFICIAL_TOTAL, "2026 年这批截至 09-14 是 15 条");
     }
 
     @Test
@@ -91,11 +92,27 @@ class CveTableTest {
     }
 
     @Test
-    @DisplayName("🔴 Dependabot 盲区数是查了两个源得出的,本批为 0")
+    @DisplayName("🔴 Dependabot 盲区数是查了两个源得出的:08-07 为 0,09-14 为 4")
     void blindSpotIsMeasuredNotAssumed() {
-        // 第 8 注 shiro 用同样的方法比出来是 5 条,本注是 0 条。
-        // 数字本身不重要,重要的是它有来源:gen_rules.py 的 ASSERT2 每次重跑都会重新核实。
-        assertEquals(0, CveTable.DEPENDABOT_BLIND);
+        // 数字本身会变(GitHub 收录后会回到 0),重要的是它有来源:
+        // gen_rules.py 的 ASSERT2 每次重跑都会逐个按 GHSA 号去全局库复核。
+        assertEquals(4, CveTable.DEPENDABOT_BLIND);
+        Set<String> blind = CveTable.all().stream().filter(c -> !c.inGlobalDb())
+                .map(Cve::ghsaId).collect(Collectors.toSet());
+        assertEquals(Set.of("GHSA-q4xh-88c3-wmh7", "GHSA-wjgm-6hv5-3cvf",
+                "GHSA-vvgp-rfg2-7rr6", "GHSA-gx83-3vf8-gh7j"), blind,
+                "盲区必须正好是 08-21 / 09-01 那 4 条 —— 常数和逐条标记要对得上");
+    }
+
+    @Test
+    @DisplayName("🔴 advisory 修复版笔误被纠正:77310 在 2.22 线写的 2.21.1 比区间下限还低")
+    void typoFixVersionCorrected() {
+        List<Cve> rows = CveTable.all().stream()
+                .filter(c -> c.ghsaId().equals("GHSA-vvgp-rfg2-7rr6"))
+                .filter(c -> c.groupId().equals(CveTable.GROUP_2X) && "2.22.0".equals(c.low()))
+                .toList();
+        assertEquals(1, rows.size());
+        assertEquals("2.22.1", rows.get(0).fixedIn(), "照抄 2.21.1 会让 2.22.0 用户去「升」到更低的版本");
     }
 
     @Test

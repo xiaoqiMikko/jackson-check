@@ -23,7 +23,7 @@ import java.util.Set;
  */
 public final class Main {
 
-    private static final String VERSION = "0.1.2";
+    private static final String VERSION = "0.2.0";
 
     /** 退出码:0 = 没有版本命中;2 = 版本命中但源码里没找到触发条件;3 = 触发条件也成立。 */
     private static final int EXIT_CLEAN = 0;
@@ -107,7 +107,8 @@ public final class Main {
 
         int code = EXIT_CLEAN;
         for (Cve c : CveTable.all()) {
-            Applicability.Verdict v = Applicability.judge(c, scanner.artifacts(), src);
+            Applicability.Verdict v = Applicability.judge(c, scanner.artifacts(), src,
+                    scanner.fileSystemProviders());
             if (v.triggered()) {
                 code = EXIT_TRIGGERED;
                 break;
@@ -208,6 +209,15 @@ public final class Main {
             }
         }
 
+        // v0.2.0:CVE-2026-19032 要看依赖里有没有第三方 FileSystemProvider —— 这一条扫的是构件,不是源码
+        out.println();
+        out.println("  依赖里注册的第三方 FileSystemProvider(CVE-2026-19032 用):");
+        if (scanner.fileSystemProviders().isEmpty()) {
+            out.println("    没找到。⚠️ 只看得见你传进来的构件;容器或 agent 运行时加进 classpath 的看不见。");
+        } else {
+            scanner.fileSystemProviders().forEach(p -> out.println("    " + p));
+        }
+
         // ── 三、逐条判定 ──
         // 🔴 归并粒度是「条目 × 坐标」而不是「条目」。
         //    真实构件复验时抓到:同时装了两个 groupId 的 jackson(升级中途很常见)时,
@@ -217,7 +227,7 @@ public final class Main {
         Map<String, Cve> repr = new LinkedHashMap<>();
         List<Cve> versionHitRules = new ArrayList<>();
         for (Cve c : CveTable.all()) {
-            Applicability.Verdict v = Applicability.judge(c, arts, src);
+            Applicability.Verdict v = Applicability.judge(c, arts, src, scanner.fileSystemProviders());
             if (v.versionHit()) {
                 versionHitRules.add(c);
             }
@@ -231,8 +241,12 @@ public final class Main {
         // 但**计数**要按条目去重 —— 「你中了几条」问的是漏洞数,不是规则数。
         Set<String> triggeredIds = new LinkedHashSet<>();
         Set<String> versionHitIds = new LinkedHashSet<>();
+        Set<String> blindHitIds = new LinkedHashSet<>();
         best.forEach((k, v) -> {
             String id = repr.get(k).ghsaId();
+            if (v.versionHit() && !repr.get(k).inGlobalDb()) {
+                blindHitIds.add(id);
+            }
             if (v.triggered()) {
                 triggeredIds.add(id);
             }
@@ -246,7 +260,12 @@ public final class Main {
         out.println();
         out.println("【三】判定结果");
         out.println("  " + "-".repeat(74));
-        out.printf("  Dependabot 会报给你:%d 条(装了受影响版本就报)%n", versionHit);
+        out.printf("  你的版本落在受影响区间内的:%d 条%n", versionHit);
+        out.printf("  其中 Dependabot 会报的:%d 条(GitHub 全局漏洞库已收录)%n", versionHit - blindHitIds.size());
+        if (!blindHitIds.isEmpty()) {
+            out.printf("  🔴 其中 Dependabot 看不见的:%d 条(GitHub 全局漏洞库还没收录,按 GHSA 号查 404)%n",
+                    blindHitIds.size());
+        }
         if (src != null) {
             out.printf("  源码里触发条件成立的:%d 条  ← 这才是你真正要先处理的%n", triggered);
         }
@@ -271,6 +290,10 @@ public final class Main {
                 Applicability.Verdict v = best.get(id);
                 out.printf("    %-22s %-8s %s%n", c.displayId(),
                         c.severity() + (c.cvss() > 0 ? " " + c.cvss() : ""), c.title());
+                if (!c.inGlobalDb() && v.versionHit()) {
+                    out.println("        🔴 GitHub 全局漏洞库还没收录这条 —— Dependabot 不会报:"
+                            + "https://github.com/FasterXML/jackson-databind/security/advisories/" + c.ghsaId());
+                }
                 if (!detail) {
                     continue;
                 }

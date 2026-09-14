@@ -124,6 +124,31 @@ CONDITIONS = {
         "仅当用 ObjectMapper.readTree() 读入深层嵌套 JSON,再用 JsonNode.toString() 输出",
         ["readTree", "JsonNode"],
         ["readTree", "toString()"]),
+    # ── v0.2.0(2026-09-14)新增:08-21 / 09-01 发布的 4 条 ──
+    "GHSA-q4xh-88c3-wmh7": (
+        "XML_DATATYPE",
+        "仅当把不可信 JSON 绑定到 javax.xml.datatype.Duration 或 XMLGregorianCalendar 类型的字段"
+        "(默认 mapper 即可,不需要多态或特殊配置;注意 java.time.Duration 不是这一条)",
+        ["XMLDatatype"],
+        ["javax.xml.datatype.Duration", "XMLGregorianCalendar", "JsonMapper.builder().build()"]),
+    "GHSA-wjgm-6hv5-3cvf": (
+        "NIO_PATH_PROVIDER",
+        "仅当把不可信 JSON 绑定到 java.nio.file.Path 字段;且只有 JDK 自带 provider 时结果无害,"
+        "要真正产生副作用还需 classpath 上有第三方 FileSystemProvider",
+        ["NioPath", "FS_PROVIDER"],
+        ["java.nio.file.Path", "FileSystemProvider", "JDK built-in providers"]),
+    "GHSA-vvgp-rfg2-7rr6": (
+        "INET_ADDRESS",
+        "仅当把不可信 JSON 绑定到 InetAddress 类型(绑定时就会发起 DNS 查询)。"
+        "这是 CVE-2026-54514(InetSocketAddress)修得不完整留下的兄弟分支",
+        ["InetAddress"],
+        ["InetAddress.getByName", "InetSocketAddress", "incomplete"]),
+    "GHSA-gx83-3vf8-gh7j": (
+        "POLYMORPHIC_COMPARABLE",
+        "仅当 @JsonTypeInfo 标在 Comparable 类型的属性上,且没有配置自定义 PolymorphicTypeValidator"
+        "(activateDefaultTyping 必须传 validator,不受影响)",
+        ["@JsonTypeInfo", "ComparableProp"],
+        ["DefaultBaseTypeLimitingValidator", "java.lang.Comparable", "@JsonTypeInfo"]),
 }
 
 # 源码标记 → (正则, 中文名)。
@@ -150,6 +175,19 @@ MARKERS = {
     "JsonNode": (r"\bJsonNode\b", "JsonNode 类型"),
     # Java Record 声明。要求后面跟标识符和 '(',否则 "record" 作为普通变量名会误命中。
     "record": (r"\brecord\s+[A-Z]\w*\s*\(", "Java Record 声明"),
+    # ── v0.2.0 ──
+    # 🔴 只认 javax.xml.datatype 的 Duration,**不认裸 Duration** —— java.time.Duration 满地都是,
+    #    认裸词会让几乎所有项目都「命中」这一条,降噪当场失效。
+    "XMLDatatype": (r"\bXMLGregorianCalendar\b|\bjavax\.xml\.datatype\.(?:Duration\b|\*)",
+                    "javax.xml.datatype.Duration / XMLGregorianCalendar"),
+    "NioPath": (r"\bjava\.nio\.file\.(?:Path\b|\*)", "java.nio.file.Path 类型"),
+    # 🔴 这个标记**不在源码里找**:它由 Scanner 扫构件里的
+    #    META-INF/services/java.nio.file.spi.FileSystemProvider 决定(见 Applicability)。
+    #    正则写成永不匹配,防止被 SourceScan 误用。
+    "FS_PROVIDER": (r"(?!)", "依赖里注册了第三方 FileSystemProvider(扫构件,不扫源码)"),
+    # \b 两侧是单词边界,InetSocketAddress 不会被当成 InetAddress
+    "InetAddress": (r"\bInetAddress\b", "java.net.InetAddress 类型"),
+    "ComparableProp": (r"\bComparable\s*(?:<[^>]*>)?\s+\w+\s*[;=]", "Comparable 类型的字段声明"),
 }
 
 # 用来判断「这份源码到底用没用 jackson」的上锚。一个标记都没命中时,
@@ -211,9 +249,30 @@ union_b = set(srcB[OLD_G]) | set(srcB[NEW_G])
 blind = sorted(set(official) - union_b)
 print("\nASSERT2 盲区对比:官方 %d 条 · 两个坐标反查合计 %d 条 · 差值 %d 条"
       % (len(official), len(union_b), len(blind)))
-assert not blind, (
-    "🔴 ASSERT2 失败:这 %d 条官方发布了但按两个坐标都查不到 —— 它们进不了 Dependabot 告警,"
-    "是真盲区,必须写进报告和文案:%s" % (len(blind), blind))
+# 🔴 2026-09-14(v0.2.0)改:原先这里断言「盲区必须为 0」—— 08-07 那一批确实是 0。
+#    08-21 / 09-01 新出的 4 条到 09-14 仍查不到,**盲区从 0 变成了 4**。
+#    断言改成「盲区允许存在,但每一条都必须逐个去全局库复核为 404」:
+#    按坐标反查查不到,可能只是 affects 参数的问题(第 10 注源 A 返回 0 且不报错);
+#    逐个按 GHSA 号查全局库也 404,才算坐实「Dependabot 看不见」。
+def global_404(ghsa):
+    r = subprocess.run([GH, "api", "/advisories/" + ghsa], capture_output=True, text=True,
+                       encoding="utf-8", timeout=180)
+    if r.returncode == 0:
+        return False
+    if "404" in (r.stdout or "") + (r.stderr or ""):
+        return True
+    sys.exit("🔴 ASSERT2 复核 %s 失败(不是 404):%s —— 拿不到 ≠ 不存在,中止" % (ghsa, (r.stderr or "")[:200]))
+
+
+for g_ in blind:
+    assert global_404(g_), (
+        "🔴 ASSERT2 失败:%s 按坐标反查不到,但按 GHSA 号在全局库查得到 —— "
+        "是 affects 查询漏了,不是 Dependabot 盲区" % g_)
+    print("   🔴 盲区 %s(%s)—— 按坐标查不到,全局库按 GHSA 号也 404" % (g_, official[g_].get("cve_id")))
+# 阳性对照:任取一条非盲区条目,全局库必须查得到 —— 否则上面的 404 可能是查询本身坏了
+_pos = sorted(set(official) - set(blind))[0]
+assert not global_404(_pos), "🔴 ASSERT2 阳性对照失败:%s 在全局库也 404,查询坏了" % _pos
+print("   阳性对照 %s 在全局库查得到 ✅" % _pos)
 extra_b = sorted(union_b - set(official))
 assert not extra_b, (
     "🔴 ASSERT2 反向失败:这些条目按坐标查得到,官方仓库页面上却没有 —— "
@@ -224,7 +283,7 @@ for g in (OLD_G, NEW_G):
     if miss:
         print("   %-30s 少 %d 条:%s" % (g, len(miss), ", ".join(
             "%s(%s)" % (m, official[m].get("cve_id") or "无CVE号") for m in miss)))
-print("   → 差值为 0:本注**没有** Dependabot 盲区。这是查了两个源之后的结论,不是只查一个源的默认值。")
+print("   → 差值 %d 条:这些条目进不了 Dependabot 告警(两个源比对 + 逐个复核得出)。" % len(blind))
 
 
 # ────────────────────────── 版本区间解析 ──────────────────────────
@@ -263,6 +322,20 @@ def branch(version):
     return "%s.%s" % (m.group(1), m.group(2)) if m else "?"
 
 
+CORRECTIONS = []
+
+
+def _vkey(v):
+    """版本排序键。预发布(rc/alpha/beta)排在同号正式版之前。"""
+    m = re.match(r"^(\d+(?:\.\d+)*)(?:[.\-]?(alpha|beta|rc|m)[.\-]?(\d*))?$", v or "", re.I)
+    if not m:
+        return (0,), 0, 0
+    nums = tuple(int(x) for x in m.group(1).split("."))
+    nums = nums + (0,) * (4 - len(nums))
+    rank = {"alpha": 1, "beta": 2, "m": 1, "rc": 3}.get((m.group(2) or "").lower(), 9)
+    return nums, rank, int(m.group(3) or 0)
+
+
 print("\n展开成「advisory × 坐标 × 区间」规则...")
 rows = []
 for ghsa in order:
@@ -275,6 +348,15 @@ for ghsa in order:
                 name = (v.get("package") or {}).get("name") or ""
                 if name in ("%s:%s" % (OLD_G, ART), "%s:%s" % (NEW_G, ART)):
                     vulns.append(v)
+    if ghsa in blind:
+        # 🔴 盲区条目源 B 里没有,只能取源 A(官方仓库端点)的 vulnerabilities。
+        #    字段名不同:源 A 是 patched_versions,源 B 是 first_patched_version。
+        for v in a.get("vulnerabilities") or []:
+            name = (v.get("package") or {}).get("name") or ""
+            if name in ("%s:%s" % (OLD_G, ART), "%s:%s" % (NEW_G, ART)):
+                vulns.append({"package": v.get("package"),
+                              "vulnerable_version_range": v.get("vulnerable_version_range"),
+                              "first_patched_version": (v.get("patched_versions") or "").strip()})
     # 同一条 advisory 在两个坐标下都查得到时会重复,按 (坐标, 区间) 去重
     seen = set()
     for v in vulns:
@@ -286,8 +368,23 @@ for ghsa in order:
         seen.add(key)
         low, li, high, hi = parse_range(rng)
         fixed = v.get("first_patched_version") or ""
+        if isinstance(fixed, dict):
+            fixed = fixed.get("identifier") or ""
+        # 🔴 2026-09-14 实测:GHSA-vvgp-rfg2-7rr6 在 2.22 线写着区间 `>= 2.22.0, < 2.22.1`、
+        #    修复版却是 `2.21.1` —— **比区间下限还低**,是笔误。照抄会让 2.22.0 用户去「升」到 2.21.1。
+        #    只在「修复版 < 下限 且 上限是开区间」时纠正为上限(开区间上限就是首个不受影响版本),
+        #    其余一律中止 —— 不猜。
+        if fixed and low and _vkey(fixed) < _vkey(low):
+            if high and not hi:
+                print("   🔴 修复版笔误 %s %s:区间 %r 却写修复版 %s → 按开区间上限纠正为 %s"
+                      % (ghsa, grp, rng, fixed, high))
+                CORRECTIONS.append({"ghsa": ghsa, "group": grp, "range": rng, "wrote": fixed, "used": high})
+                fixed = high
+            else:
+                sys.exit("🔴 %s 修复版 %s 低于区间下限 %s,且无法从区间推出正确值,中止" % (ghsa, fixed, low))
         rows.append({"ghsa": ghsa, "group": grp, "low": low, "low_incl": li,
-                     "high": high, "high_incl": hi, "fixed": fixed, "branch": branch(fixed)})
+                     "high": high, "high_incl": hi, "fixed": fixed, "branch": branch(fixed),
+                     "in_global": ghsa not in blind})
 
 # ASSERT4:每条 advisory 都必须落成至少一条规则 —— 防止某条被静默丢掉
 lost = [g for g in official if not any(r["ghsa"] == g for r in rows)]
@@ -385,17 +482,6 @@ print("   → advisory 里 %s 挂着 %d 条 3.x 区间、%s 挂着 %d 条 2.x �
 #
 # 各维护分支的正确答案 = 该分支上所有 fixed 的**最大值**。
 # 与 advisory 里出现频次最高的那个版本一比,差出来的就是「照单升级会漏的那几条」。
-def _vkey(v):
-    """版本排序键。预发布(rc/alpha/beta)排在同号正式版之前。"""
-    m = re.match(r"^(\d+(?:\.\d+)*)(?:[.\-]?(alpha|beta|rc|m)[.\-]?(\d*))?$", v or "", re.I)
-    if not m:
-        return (0,), 0, 0
-    nums = tuple(int(x) for x in m.group(1).split("."))
-    nums = nums + (0,) * (4 - len(nums))
-    rank = {"alpha": 1, "beta": 2, "m": 1, "rc": 3}.get((m.group(2) or "").lower(), 9)
-    return nums, rank, int(m.group(3) or 0)
-
-
 targets = {}
 for r in rows:
     if not r["fixed"]:
@@ -551,8 +637,8 @@ out = [
     "    /**",
     "     * 官方发布了、但按两个坐标都查不到的条目数 —— 即进不了 Dependabot 告警的数量。",
     "     *",
-    "     * <p>🔴 本注实测为 0。这是<b>查了两个源之后</b>的结论,不是只查一个源的默认值;",
-    "     * 第 8 注(shiro)用同样的方法比出来是 5 条。gen_rules.py 的 ASSERT2 每次重跑都会重新核实。",
+    "     * <p>🔴 08-07 首版实测为 0;2026-09-14 重跑为 4(08-21 / 09-01 新发的 4 条全局库仍 404)。",
+    "     * 每条都逐个按 GHSA 号复核过,gen_rules.py 的 ASSERT2 每次重跑都会重新核实。",
     "     */",
     "    public static final int DEPENDABOT_BLIND = %d;" % len(blind),
     "",
@@ -564,7 +650,7 @@ for r in rows:
     ghsa = r["ghsa"]
     a = official[ghsa]
     kind, cond_text, marks, _anchors = CONDITIONS[ghsa]
-    out.append("        add(%s, %s, %s, %s, %.1f, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);"
+    out.append("        add(%s, %s, %s, %s, %.1f, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);"
                % (
                    jstr(ghsa), jstr(a.get("cve_id") or ""), jstr(r["group"]),
                    jstr(a.get("severity") or "unknown"),
@@ -575,7 +661,8 @@ for r in rows:
                    jstr(r["fixed"]), "true" if r.get("fixed_ok") else "false",
                    jstr(kind), jstr(cond_text), jstr(",".join(marks)),
                    jstr(short_title(a.get("summary"))),
-                   jstr(first_sentence(a.get("description")))))
+                   jstr(first_sentence(a.get("description"))),
+                   "true" if r["in_global"] else "false"))
 out += [
     "    }",
     "",
@@ -584,12 +671,12 @@ out += [
     "                            String low, boolean lowIncl, String high, boolean highIncl,",
     "                            String fixedIn, boolean fixedAvailable,",
     "                            String condKind, String condText, String markers,",
-    "                            String title, String desc) {",
+    "                            String title, String desc, boolean inGlobalDb) {",
     "        ALL.add(new Cve(ghsaId, cveId, groupId, severity, cvss, branch,",
     "                        low, lowIncl, high, highIncl, fixedIn, fixedAvailable,",
     "                        condKind, condText,",
     "                        markers.isEmpty() ? List.of() : List.of(markers.split(\",\")),",
-    "                        title, desc));",
+    "                        title, desc, inGlobalDb));",
     "    }",
     "",
     "    public static List<Cve> all() { return Collections.unmodifiableList(ALL); }",
@@ -654,6 +741,6 @@ for (g, b), t in sorted(targets.items()):
 json.dump({"rows": rows, "official": {k: {"cve": v.get("cve_id"), "sev": v.get("severity"),
                                           "summary": v.get("summary")} for k, v in official.items()},
            "targets": {"%s|%s" % k: v for k, v in targets.items()},
-           "ghosts": ["%s|%s" % k for k in ghosts], "blind": blind},
+           "ghosts": ["%s|%s" % k for k in ghosts], "blind": blind, "corrections": CORRECTIONS},
           open(os.path.join(HERE, "rules_dump.json"), "w", encoding="utf-8"),
           ensure_ascii=False, indent=1)

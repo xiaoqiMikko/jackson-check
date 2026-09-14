@@ -32,33 +32,33 @@ class RemediationTest {
     }
 
     @Test
-    @DisplayName("🔥 2.21.2 的答案是 2.21.5,不是 advisory 里反复出现的 2.21.4")
+    @DisplayName("🔥 2.21.2 的答案是 2.21.6:不是 advisory 里反复出现的 2.21.4,也不再是 v0.1 给的 2.21.5")
     void jackson221TargetIsNot2214() {
         List<Cve> hits = hitsFor(CveTable.GROUP_2X, "2.21.2");
         assertFalse(hits.isEmpty(), "2.21.2 应该中不少条");
         List<Remediation.Plan> plans = Remediation.plan(hits, art(CveTable.GROUP_2X, "2.21.2"));
         assertEquals(1, plans.size(), "2.x 只该给一个升级目标");
-        assertEquals("2.21.5", plans.get(0).target(),
-                "8 条 advisory 都写 2.21.4,但 CVE-2026-54515 / 59889 / GHSA-mhm7 要 2.21.5");
-        assertTrue(plans.get(0).available(), "2.21.5 在 Central 上拿得到");
+        assertEquals("2.21.6", plans.get(0).target(),
+                "08-21 / 09-01 新发的 68497 / 19032 / 83557 要 2.21.6");
+        assertTrue(plans.get(0).available(), "2.21.6 在 Central 上拿得到");
     }
 
     @Test
-    @DisplayName("🔥 2.18.5 的答案是 2.18.9,不是 2.18.8")
+    @DisplayName("🔥 2.18.5 的答案是 2.18.10,不是 2.18.8 / 2.18.9")
     void jackson218TargetIsNot2188() {
         List<Cve> hits = hitsFor(CveTable.GROUP_2X, "2.18.5");
         List<Remediation.Plan> plans = Remediation.plan(hits, art(CveTable.GROUP_2X, "2.18.5"));
-        assertEquals("2.18.9", plans.get(0).target());
+        assertEquals("2.18.10", plans.get(0).target());
     }
 
     @Test
-    @DisplayName("🔥 Jackson 3.1.2 的答案是 3.1.5,不是 3.1.4")
+    @DisplayName("🔥 Jackson 3.1.2 的答案是 3.1.6,不是 3.1.4 / 3.1.5")
     void jackson31TargetIsNot314() {
         List<Cve> hits = hitsFor(CveTable.GROUP_3X, "3.1.2");
         assertFalse(hits.isEmpty());
         List<Remediation.Plan> plans = Remediation.plan(hits, art(CveTable.GROUP_3X, "3.1.2"));
-        assertEquals("3.1.5", plans.get(0).target(),
-                "多数条目写 3.1.4,而 CVE-2026-59889 要 3.1.5");
+        assertEquals("3.1.6", plans.get(0).target(),
+                "多数条目写 3.1.4,59889 要 3.1.5,08-21 / 09-01 新发的三条要 3.1.6");
     }
 
     @Test
@@ -73,11 +73,20 @@ class RemediationTest {
     }
 
     @Test
-    @DisplayName("已经升到 2.21.5 的人,2.21 线上不该再中")
+    @DisplayName("已经升到 2.21.6 的人,2.21 线上不该再中")
     void patchedVersionIsClean() {
-        List<Cve> hits = hitsFor(CveTable.GROUP_2X, "2.21.5");
-        assertTrue(hits.isEmpty(), "2.21.5 应该盖住 2.21 线全部条目,实际还中:"
+        List<Cve> hits = hitsFor(CveTable.GROUP_2X, "2.21.6");
+        assertTrue(hits.isEmpty(), "2.21.6 应该盖住 2.21 线全部条目,实际还中:"
                 + hits.stream().map(Cve::displayId).collect(Collectors.toSet()));
+    }
+
+    @Test
+    @DisplayName("🔴 照 v0.1 的建议升到 2.21.5 的人,仍然中 3 条 —— 而且这 3 条 Dependabot 都不报")
+    void v01AdviceIsNowShort() {
+        List<Cve> hits = hitsFor(CveTable.GROUP_2X, "2.21.5");
+        Set<String> ids = hits.stream().map(Cve::displayId).collect(Collectors.toSet());
+        assertEquals(Set.of("CVE-2026-68497", "CVE-2026-19032", "CVE-2026-83557"), ids);
+        assertTrue(hits.stream().noneMatch(Cve::inGlobalDb), "这 3 条都不在 GitHub 全局漏洞库里");
     }
 
     @Test

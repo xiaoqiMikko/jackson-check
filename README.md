@@ -1,11 +1,12 @@
 # jackson-check
 
-**jackson-databind 2026 年 11 条安全公告自查工具。零依赖单 jar,不联网。**
+**jackson-databind 2026 年 15 条安全公告自查工具。零依赖单 jar,不联网。**
 
-它回答两个 Dependabot 回答不了的问题:
+它回答三个 Dependabot 回答不了的问题:
 
-1. **这 11 条里,我真正中几条?** —— 扫你的源码找触发条件(`@JsonView` / 多态类型 / 大小写不敏感匹配……),把「装了受影响版本」降噪成「真的踩到那个特性」。
-2. **我到底该升到哪个版本?** —— 11 条 advisory 给出的修复版**互相不一致**,逐条求交集才有答案。
+0. **(v0.2.0)Dependabot 根本没收录的那几条,我中没中?** —— 见下方「v0.2.0」一节。
+1. **这 15 条里,我真正中几条?** —— 扫你的源码找触发条件(`@JsonView` / 多态类型 / 大小写不敏感匹配……),把「装了受影响版本」降噪成「真的踩到那个特性」。
+2. **我到底该升到哪个版本?** —— 15 条 advisory 给出的修复版**互相不一致**,逐条求交集才有答案。
 
 ```bash
 java -jar jackson-check.jar ./target ./src
@@ -13,7 +14,44 @@ java -jar jackson-check.jar ./target ./src
 
 ---
 
-## 🔥 三个实测结论(每条都能自己复现)
+## 🔴 v0.2.0(2026-09-14):08-21 / 09-01 又发了 4 条,GitHub 全局漏洞库至今没收录
+
+FasterXML 在自己仓库的 Security 页上新发了 4 条:
+
+| 编号 | 级别 | 主题 | 修复版 |
+|---|---|---|---|
+| CVE-2026-68497 | **high** 7.5 | 字符串绑定到 `javax.xml.datatype.Duration` / `XMLGregorianCalendar` 时数字长度无上限 → CPU DoS(默认 mapper 即可) | 2.18.10 / 2.21.6 / 2.22.2 / 3.1.6 / 3.2.2 |
+| CVE-2026-19032 | medium 5.3 | `java.nio.file.Path` 反序列化不限制 URI scheme,可驱动任意已注册的 `FileSystemProvider` | 同上 |
+| CVE-2026-83557 | medium 5.6 | 默认 `PolymorphicTypeValidator` 的拒绝列表漏了 `Comparable` | 同上 |
+| CVE-2026-77310 | medium 5.3 | **CVE-2026-54514 修得不完整**:`InetAddress` 分支仍会立即做 DNS 解析 | 2.18.9 / 2.21.5 / 2.22.1 / 3.1.5 / 3.2.1 |
+
+逐项实测:
+
+- **GitHub 全局 advisory 库按 GHSA 号查全部 404**,按坐标反查也查不到 —— **Dependabot 不会报**。
+  对照:此前几条发布后 5~11 天就进了全局库(06-16 → 06-23、07-10 → 07-21),这 4 条到 09-14 已 13~24 天。
+- **OSV 按 Maven 坐标查也查不到**:这几条 CVE 记录只有 Git 提交区间,`jackson-databind:2.21.5` 查询返回空。
+- 于是 v0.1 给出的「一次修完」版本 **2.18.9 / 2.21.5 / 3.1.5 不够了**,新的答案是 **2.18.10 / 2.21.6 / 2.22.2 / 3.1.6 / 3.2.2**(Central 全部可下载)。
+- advisory 原文把 77310 在 2.22 线的修复版写成了 `2.21.1`(区间却是 `>= 2.22.0, < 2.22.1`),本工具按区间纠正为 `2.22.1` 并在生成时打印出来。
+
+```bash
+# 照 v0.1 的建议已经升到 2.21.5 的项目
+java -jar jackson-check.jar ./lib ./src
+#   你的版本落在受影响区间内的:3 条
+#   其中 Dependabot 会报的:0 条
+#   🔴 其中 Dependabot 看不见的:3 条(GitHub 全局漏洞库还没收录,按 GHSA 号查 404)
+#   现在 2.21.5  →  升到 2.21.6
+```
+
+新增两项触发条件扫描:
+
+- **CVE-2026-19032**:advisory 原文说只有 JDK 自带 provider 时结果无害。本工具会扫构件里的
+  `META-INF/services/java.nio.file.spi.FileSystemProvider`,列出**第三方** provider(实测能认出 jimfs);
+  源码里有 `java.nio.file.Path` 且依赖里有第三方 provider 才判「全部成立」。
+- **CVE-2026-68497**:只认 `javax.xml.datatype.Duration` / `XMLGregorianCalendar`,**不认 `java.time.Duration`**(那个满地都是,认了等于没降噪)。
+
+---
+
+## 🔥 三个实测结论(v0.1,2026-08-07;版本号已被 v0.2.0 更新)
 
 ### 一、升到 advisory 里出现最多的那个版本,仍然中三条
 
@@ -144,11 +182,11 @@ java -jar jackson-check.jar build/libs src/main/java
 - **源 A** `/repos/FasterXML/jackson-databind/security-advisories` —— 维护者发布的条目全集 + 描述原文
 - **源 B** `/advisories?ecosystem=maven&affects=<坐标>` —— Dependabot 实际用的坐标索引(两个 groupId 各查一次)
 
-11 条 advisory 展开成 **37 条「advisory × 坐标 × 版本区间」规则**,带 **13 条断言**,任一不满足就中止且不写文件 —— 防「解析失败生成空壳表而测试照样全绿」:
+15 条 advisory 展开成 **57 条「advisory × 坐标 × 版本区间」规则**,带 **13 条断言**,任一不满足就中止且不写文件 —— 防「解析失败生成空壳表而测试照样全绿」:
 
 | 断言 | 查什么 |
 |---|---|
-| ASSERT2 | ⭐ 双源盲区对比,差值必须为 0 或被逐条解释 |
+| ASSERT2 | ⭐ 双源盲区对比;差值里的每一条都要**逐个按 GHSA 号去全局库复核为 404**,并带阳性对照 |
 | ASSERT6 | 两个 groupId 都要覆盖 |
 | ASSERT7 | 每个修复版逐个 HEAD 请求探 Maven Central 可获取性 |
 | ASSERT8 | 双向幽灵:拉 `maven-metadata.xml` 证明整条大版本线在那个坐标下不存在 |
@@ -160,7 +198,7 @@ java -jar jackson-check.jar build/libs src/main/java
 python tools/gen_rules.py      # 需要已登录的 gh CLI
 ```
 
-**56 个单元测试 + 7 个真实构件端到端场景**(真 jar:2.13.0 / 2.18.5 / 2.21.2 / 2.21.4 / 2.21.5 / 3.1.2 / 3.1.5)。
+**65 个单元测试 + 真实构件端到端场景**(v0.2.0 复跑真 jar:2.21.2 / 2.21.5 / 2.21.6 / 3.1.5 / jimfs 1.3.0)。
 
 ---
 
@@ -179,6 +217,10 @@ python tools/gen_rules.py      # 需要已登录的 gh CLI
 | CVE-2026-59888 | medium 6.5 | Record 属性上的 `@JsonIgnore` 被命名策略绕过 |
 | CVE-2026-59889 | medium 6.5 | `@JsonView` 对 `@JsonUnwrapped` 容器属性失效 |
 | **GHSA-mhm7-754m-9p8w** | medium 6.5 | **无 CVE 号** · `@JsonView` + `As.EXTERNAL_PROPERTY` 补丁缺口 |
+| CVE-2026-68497 | **high** 7.5 | 🔴 **全局库未收录** · `Duration` / `XMLGregorianCalendar` 数字解析 DoS |
+| CVE-2026-19032 | medium 5.3 | 🔴 **全局库未收录** · `Path` 反序列化驱动任意 `FileSystemProvider` |
+| CVE-2026-83557 | medium 5.6 | 🔴 **全局库未收录** · 默认 PTV 拒绝列表漏 `Comparable` |
+| CVE-2026-77310 | medium 5.3 | 🔴 **全局库未收录** · 54514 修得不完整,`InetAddress` 仍立即解析 DNS |
 
 ---
 
