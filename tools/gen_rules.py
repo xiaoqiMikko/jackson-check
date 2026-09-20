@@ -188,12 +188,80 @@ MARKERS = {
     # \b 两侧是单词边界,InetSocketAddress 不会被当成 InetAddress
     "InetAddress": (r"\bInetAddress\b", "java.net.InetAddress 类型"),
     "ComparableProp": (r"\bComparable\s*(?:<[^>]*>)?\s+\w+\s*[;=]", "Comparable 类型的字段声明"),
+    # ── v0.3.0:jackson-core 那 7 条用的标记 ──
+    # 🔴 这一组的共同边界:**它们判的是「你从什么源头解析」,而源头常常是个变量**
+    #    (readValue(body, X.class) 里 body 是 String 还是 byte[],文本匹配看不出来)。
+    #    所以刻意只认**显式写法**,宁可漏判成「未找到触发条件」(报告里仍完整列出 + 印「这不等于安全」),
+    #    也不认裸词把所有项目都点亮 —— 认裸词会让降噪当场失效(同 XMLDatatype 那条的教训)。
+    "StreamReadConstraints": (r"\bStreamReadConstraints\b|\bsetStreamReadConstraints\b",
+                              "显式配置过 StreamReadConstraints 限流"),
+    "CharInputParse": (r"\b(?:readValue|readTree|createParser)\s*\(\s*new\s+(?:StringReader|CharArrayReader|InputStreamReader|FileReader)\b",
+                       "从 String / Reader / char[] 解析(显式写法)"),
+    "AsyncParser": (r"\bcreateNonBlockingByteArrayParser\b|\bfeedInput\s*\(|\bNON_BLOCKING\b",
+                    "非阻塞(async)解析器"),
+    "DataInputParse": (r"\bjava\.io\.DataInput\b|\bcreateParser\s*\(\s*(?:new\s+)?\w*DataInput",
+                       "从 java.io.DataInput 解析"),
+    "ByteOffsetParse": (r"\b(?:readValue|createParser)\s*\(\s*\w+\s*,\s*\d+\s*,",
+                        "带 offset/length 的 byte[] 解析"),
 }
 
 # 用来判断「这份源码到底用没用 jackson」的上锚。一个标记都没命中时,
 # 靠它区分两种完全不同的情况:没用 jackson(合理) vs 用了但没用到这些特性(才是降噪)。
 ANCHOR_MARKER = "ObjectMapper"
 MARKERS[ANCHOR_MARKER] = (r"\bObjectMapper\b", "ObjectMapper(是否用到 jackson 的上锚)")
+
+# ────────────────── v0.3.0:jackson-core 的降噪表(第 32 注)──────────────────
+#
+# 🔴 **为什么要有这一张**:v0.2.x 整张判定表只有 jackson-databind 一个 artifactId,
+#    而 jackson-core 是**另一个独立发版的坐标**(dependents 17,812,比 databind 还多)。
+#    扫 databind 永远扫不出 core 的洞,而报告不会因此报任何错 —— 它只是安静地什么都不说。
+#
+# ⭐ 这 7 条里有 5 条是**同一族**:StreamReadConstraints 的各项限流被绕过
+#    (maxNameLength / maxNumberLength ×2 / maxDocumentLength / maxNestingDepth)。
+#
+# 🔴 **口径红线(2026-09-21 逐条实测,写文案时不许说过头)**:7 条里**只有 CVE-2026-68498 一条**
+#    在 GitHub 全局库查不到;其余 6 条全是 reviewed 且带包信息,**Dependabot 正常告警**。
+#    不许写「Dependabot 对 jackson-core 全瞎」—— 同 bc-check 那条老红线。
+CONDITIONS_CORE = {
+    "GHSA-649p-m576-vr99": (
+        "CHAR_INPUT",
+        "仅当从 String / Reader / char[] 解析不可信 JSON;从 byte[] / InputStream 解析**不受影响**"
+        "(字节路径每次扩缓冲都重校验)。"
+        "🔴 本工具只认得出显式的字符输入写法,**认不出 readValue(某个String变量, …) 这种最常见的形态**"
+        " —— 未命中不等于不受影响。",
+        ["CharInputParse"],
+        ["maxNameLength", "ReaderBasedJsonParser"]),
+    "GHSA-r7wm-3cxj-wff9": (
+        "ASYNC_PARSER",
+        "仅当用非阻塞(async)解析器,即 createNonBlockingByteArrayParser + feedInput 那套 API",
+        ["AsyncParser"],
+        ["Async Parser", "incomplete"]),
+    "GHSA-72hv-8253-57qq": (
+        "ASYNC_PARSER",
+        "同上:仅当用非阻塞(async)解析器;阻塞解析器不受影响",
+        ["AsyncParser"],
+        ["maxNumberLength", "async"]),
+    "GHSA-2m67-wjpj-xhg9": (
+        "DOC_LENGTH",
+        "仅当你**显式配置过** maxDocumentLength 并依赖它挡住超大文档 —— 它默认是关的(-1)",
+        ["StreamReadConstraints"],
+        ["maxDocumentLength"]),
+    "GHSA-6v53-7c9g-w56r": (
+        "DATA_INPUT",
+        "仅当从 java.io.DataInput 解析(UTF8DataInputJsonParser 这条路径)",
+        ["DataInputParse"],
+        ["UTF8DataInputJsonParser", "maxNestingDepth"]),
+    "GHSA-h46c-h94j-95f3": (
+        "DEEP_NEST",
+        "解析不可信 JSON 即可能中(深层嵌套触发 StackOverflowError);2.15.0 起才有可配置的深度上限",
+        [ANCHOR_MARKER],
+        ["deeply nested"]),
+    "GHSA-wf8f-6423-gfxg": (
+        "BYTE_OFFSET",
+        "仅当从**带 offset/length 的 byte[]** 解析,且把异常信息透给了外部(异常里可能夹带最多 500 字节内存内容)",
+        ["ByteOffsetParse"],
+        ["JsonLocation", "offset"]),
+}
 
 
 def gh(path):
@@ -290,6 +358,10 @@ print("   → 差值 %d 条:这些条目进不了 Dependabot 告警(两个源比
 RANGE_RE = re.compile(r"^\s*(>=|<=|<|>|=)\s*(\S+)\s*$")
 
 
+BARE_VER_RE = re.compile(r"^\d[\w.\-]*$")
+DASH_RANGE_RE = re.compile(r"^(\d[\w.\-]*)\s*-\s*(\d[\w.\-]*)$")
+
+
 def parse_range(s):
     """把 '>= 2.10.0, <= 2.18.7' 拆成 (low, lowIncl, high, highIncl)。
 
@@ -298,6 +370,19 @@ def parse_range(s):
     """
     low = high = ""
     low_incl = high_incl = False
+
+    # ── v0.3.0:仓库级区间是**维护者手打的自由文本**,jackson-core 那 7 条里出现了
+    #    databind 那批从没出现过的两种写法。照旧只认 ">= a, <= b" 会当场中止(实测撞到)。
+    #    🔴 两种都**照字面翻译,不做任何换算**(口径同下面那条红字)。
+    txt = (s or "").strip()
+    # ① 裸版本 "3.0.0" = 恰好这一个版本(GHSA-6v53-7c9g-w56r 实测)
+    if BARE_VER_RE.match(txt):
+        return txt, True, txt, True
+    # ② 连字符区间 "2.0.0 - 2.18.5" = 闭区间(GHSA-72hv-8253-57qq 实测)
+    m_dash = DASH_RANGE_RE.match(txt)
+    if m_dash:
+        return m_dash.group(1), True, m_dash.group(2), True
+
     for part in s.split(","):
         m = RANGE_RE.match(part)
         if not m:
@@ -382,7 +467,7 @@ for ghsa in order:
                 fixed = high
             else:
                 sys.exit("🔴 %s 修复版 %s 低于区间下限 %s,且无法从区间推出正确值,中止" % (ghsa, fixed, low))
-        rows.append({"ghsa": ghsa, "group": grp, "low": low, "low_incl": li,
+        rows.append({"ghsa": ghsa, "group": grp, "art": ART, "low": low, "low_incl": li,
                      "high": high, "high_incl": hi, "fixed": fixed, "branch": branch(fixed),
                      "in_global": ghsa not in blind})
 
@@ -604,6 +689,120 @@ assert not _long, "🔴 ASSERT13 失败:这些标题截断后仍超长:%s" % _lo
 print("ASSERT13 标题:%d 条截断后均 ≤ 100 字 ✅" % len(official))
 
 
+# ══════════════════ v0.3.0:jackson-core 的规则(第 32 注)══════════════════
+#
+# 🔴 单独一段、单独一组断言,**故意不和上面 databind 那套混跑** ——
+#    上面的 ASSERT2/6/8/9 都是针对 databind 那批的主张(双向幽灵、交集差),
+#    把 core 掺进去会让那些断言的含义变得含混,而含混的断言等于没有断言。
+CORE_REPO = "FasterXML/jackson-core"
+CORE_ART = "jackson-core"
+CORE_CENTRAL = {OLD_G: "https://repo1.maven.org/maven2/com/fasterxml/jackson/core/" + CORE_ART,
+                NEW_G: "https://repo1.maven.org/maven2/tools/jackson/core/" + CORE_ART}
+
+print()
+print("=" * 70)
+print("jackson-core(v0.3.0 新增坐标)")
+core_all = gh("/repos/%s/security-advisories?per_page=100" % CORE_REPO)
+core_official = {a["ghsa_id"]: a for a in core_all if a.get("state") == "published"}
+
+# ASSERT-C1:条目数下界 —— 少了就是 API 形状变了,不是「jackson-core 很太平」
+assert len(core_official) >= 7, (
+    "🔴 ASSERT-C1 失败:jackson-core 只拿到 %d 条(2026-09-21 实测 7 条),API 形状可能已变"
+    % len(core_official))
+print("ASSERT-C1 条目数:%d 条 ✅" % len(core_official))
+
+# ASSERT-C2 ⭐ 承重墙:全局库到底漏了几条。**变化即失败** —— 一旦 GitHub 补收 68498,
+#    文章里「Dependabot 报不出这一条」整句就要改,必须在发文前被这条断言逼停。
+core_blind = sorted(g for g in core_official if global_404(g))
+_cpos = sorted(set(core_official) - set(core_blind))
+assert _cpos, "🔴 ASSERT-C2 阳性对照不存在:全部条目都 404,查询八成坏了"
+assert not global_404(_cpos[0]), "🔴 ASSERT-C2 阳性对照失败:%s 在全局库也 404,查询坏了" % _cpos[0]
+assert core_blind == ["GHSA-649p-m576-vr99"], (
+    "🔴 ASSERT-C2 失败:jackson-core 的全局库盲区从 ['GHSA-649p-m576-vr99'] 变成了 %s —— "
+    "信息差变了,文案必须改" % core_blind)
+print("ASSERT-C2 盲区:%d/%d 条全局库查不到(%s)· 阳性对照 %s 查得到 ✅"
+      % (len(core_blind), len(core_official), ",".join(core_blind), _cpos[0]))
+
+# ASSERT-C3:降噪表必须逐条覆盖,且不许有多余条目(官方删了而我们还留着)
+_miss = [g for g in core_official if g not in CONDITIONS_CORE]
+_extra = [g for g in CONDITIONS_CORE if g not in core_official]
+assert not _miss, "🔴 ASSERT-C3 失败:这些 core 条目缺触发条件标注:%s" % _miss
+assert not _extra, "🔴 ASSERT-C3 失败:CONDITIONS_CORE 里有官方已不存在的条目(该删):%s" % _extra
+print("ASSERT-C3 降噪覆盖:%d 条逐条都有触发条件 ✅" % len(core_official))
+
+# ASSERT-C4 ⭐ 降噪溯源:锚点串必须**逐字**出现在官方描述原文里(同 ASSERT11 的口径)
+for g, (kind, ctext, marks, anchors) in CONDITIONS_CORE.items():
+    body = (core_official[g].get("description") or "") + " " + (core_official[g].get("summary") or "")
+    for anc in anchors:
+        assert anc.lower() in body.lower(), (
+            "🔴 ASSERT-C4 失败:%s 的锚点串 %r 在官方描述原文里找不到 —— "
+            "触发条件是我编的,不是读出来的" % (g, anc))
+    for mk in marks:
+        assert mk in MARKERS, "🔴 ASSERT-C4 失败:%s 用了未定义的源码标记 %r" % (g, mk)
+print("ASSERT-C4 降噪溯源:%d 条锚点全部逐字命中原文 ✅" % len(CONDITIONS_CORE))
+
+print()
+print("展开 jackson-core 规则...")
+core_rows = []
+for ghsa in sorted(core_official):
+    a = core_official[ghsa]
+    seen = set()
+    for v in (a.get("vulnerabilities") or []):
+        name = ((v.get("package") or {}).get("name") or "")
+        if name not in ("%s:%s" % (OLD_G, CORE_ART), "%s:%s" % (NEW_G, CORE_ART)):
+            continue
+        grp = name.split(":")[0]
+        rng = v.get("vulnerable_version_range") or ""
+        if (grp, rng) in seen:
+            continue
+        seen.add((grp, rng))
+        low, li, high, hi = parse_range(rng)
+        fixed = v.get("patched_versions") or v.get("first_patched_version") or ""
+        if isinstance(fixed, dict):
+            fixed = fixed.get("identifier") or ""
+        fixed = (fixed or "").strip()
+        if fixed and low and _vkey(fixed) < _vkey(low):
+            sys.exit("🔴 core %s 修复版 %s 低于区间下限 %s,中止(不猜)" % (ghsa, fixed, low))
+        core_rows.append({"ghsa": ghsa, "group": grp, "art": CORE_ART, "low": low, "low_incl": li,
+                          "high": high, "high_incl": hi, "fixed": fixed, "branch": branch(fixed),
+                          "in_global": ghsa not in core_blind})
+
+# ASSERT-C5:每条 advisory 都必须落成至少一条规则 —— 防静默丢条(同 ASSERT4)
+_lost = [g for g in core_official if not any(r["ghsa"] == g for r in core_rows)]
+assert not _lost, "🔴 ASSERT-C5 失败:这些 core 条目一条规则都没生成:%s" % _lost
+print("ASSERT-C5 展开:%d 条 → %d 条规则,无一丢失 ✅" % (len(core_official), len(core_rows)))
+
+# ASSERT-C6 ⭐ 修复版必须真的能升上去(同 ASSERT7 的理由:印一个装不上的版本 = 让人做一件做不成的事)
+print("ASSERT-C6:逐个探测 core 修复版在 Central 上拿不拿得到...", flush=True)
+_core_ok, _core_bad = 0, []
+for r in core_rows:
+    if not r["fixed"]:
+        continue
+    url = "%s/%s/%s-%s.jar" % (CORE_CENTRAL[r["group"]], r["fixed"], CORE_ART, r["fixed"])
+    code = http_code(url)
+    r["fixed_ok"] = (code == 200)
+    if code == 200:
+        _core_ok += 1
+    else:
+        _core_bad.append((r["ghsa"], r["group"], r["fixed"], code))
+_sent = http_code("%s/2.21.999/%s-2.21.999.jar" % (CORE_CENTRAL[OLD_G], CORE_ART))
+assert _sent == 404, "🔴 ASSERT-C6 哨兵失败:不存在的 2.21.999 返回 %s,探测逻辑坏了" % _sent
+assert _core_ok > 0, "🔴 ASSERT-C6 失败:一个 core 修复版都拿不到,探测八成坏了"
+print("ASSERT-C6 修复版:%d 个可达 · %d 个拿不到 · 哨兵 404 ✅" % (_core_ok, len(_core_bad)))
+for b in _core_bad:
+    print("   ⚠️ 拿不到:%s %s %s (HTTP %s)" % b)
+
+# 并进主表:标题/描述/条件的查表在下面的 emit 里统一用 merged
+rows = rows + core_rows
+official = {**official, **core_official}
+# 🔴 常量必须和逐条标记算自同一份数据 —— 否则「盲区 4 条」和表里 5 条 inGlobalDb=false
+#    会同时印在报告里,而没有任何东西会报错(CveTableTest 当场抓到过一次)。
+blind = sorted(set(blind) | set(core_blind))
+CONDITIONS = {**CONDITIONS, **CONDITIONS_CORE}
+print()
+print("合表:databind %d 条规则 + core %d 条规则 = %d 条"
+      % (len(rows) - len(core_rows), len(core_rows), len(rows)))
+
 out = [
     "package dev.mikko.jacksoncheck;",
     "",
@@ -623,13 +822,21 @@ out = [
     "    private CveTable() {}",
     "",
     "    public static final String GENERATED_FROM = "
-    "\"github.com/" + REPO + " security advisories + GitHub Advisory API\";",
+    "\"github.com/" + REPO + " + github.com/" + CORE_REPO + " security advisories + GitHub Advisory API\";",
     "",
     "    /** Jackson 2.x 的坐标。 */",
     "    public static final String GROUP_2X = " + jstr(OLD_G) + ";",
     "    /** Jackson 3.x 的坐标 —— 换了 groupId,这是本工具必须覆盖两套坐标的原因。 */",
     "    public static final String GROUP_3X = " + jstr(NEW_G) + ";",
-    "    public static final String ARTIFACT = " + jstr(ART) + ";",
+    "    /** 2.x/3.x 都叫这个名字的两个 artifact —— v0.3.0 起**两个都判**。 */",
+    "    public static final String ARTIFACT_DATABIND = " + jstr(ART) + ";",
+    "    /**",
+    "     * 🔴 v0.3.0 新增。`CVE-2026-68498`(high 7.5,2026-09-12)挂在**这个** artifact 上,",
+    "     * 而 v0.2.x 的判定表里一条 jackson-core 规则都没有 —— 扫 databind 扫不出它。",
+    "     */",
+    "    public static final String ARTIFACT_CORE = " + jstr(CORE_ART) + ";",
+    "    /** 扫描器与判定共用的 artifact 名单。 */",
+    "    public static final String[] ARTIFACTS = {ARTIFACT_DATABIND, ARTIFACT_CORE};",
     "",
     "    /** 官方发布的本批条目总数(用于报告里说明覆盖范围)。 */",
     "    public static final int OFFICIAL_TOTAL = %d;" % len(official),
@@ -637,7 +844,8 @@ out = [
     "    /**",
     "     * 官方发布了、但按两个坐标都查不到的条目数 —— 即进不了 Dependabot 告警的数量。",
     "     *",
-    "     * <p>🔴 08-07 首版实测为 0;2026-09-14 重跑为 4(08-21 / 09-01 新发的 4 条全局库仍 404)。",
+    "     * <p>🔴 08-07 首版实测为 0;09-14 为 4;2026-09-21 加入 jackson-core 后为 5",
+    "     * (databind 4 条 + core 的 CVE-2026-68498)。",
     "     * 每条都逐个按 GHSA 号复核过,gen_rules.py 的 ASSERT2 每次重跑都会重新核实。",
     "     */",
     "    public static final int DEPENDABOT_BLIND = %d;" % len(blind),
@@ -650,9 +858,9 @@ for r in rows:
     ghsa = r["ghsa"]
     a = official[ghsa]
     kind, cond_text, marks, _anchors = CONDITIONS[ghsa]
-    out.append("        add(%s, %s, %s, %s, %.1f, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);"
+    out.append("        add(%s, %s, %s, %s, %s, %.1f, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);"
                % (
-                   jstr(ghsa), jstr(a.get("cve_id") or ""), jstr(r["group"]),
+                   jstr(ghsa), jstr(a.get("cve_id") or ""), jstr(r["group"]), jstr(r["art"]),
                    jstr(a.get("severity") or "unknown"),
                    cvss_of(ghsa),
                    jstr(r["branch"]),
@@ -666,13 +874,14 @@ for r in rows:
 out += [
     "    }",
     "",
-    "    private static void add(String ghsaId, String cveId, String groupId, String severity,",
+    "    private static void add(String ghsaId, String cveId, String groupId, String artifactId,",
+    "                            String severity,",
     "                            double cvss, String branch,",
     "                            String low, boolean lowIncl, String high, boolean highIncl,",
     "                            String fixedIn, boolean fixedAvailable,",
     "                            String condKind, String condText, String markers,",
     "                            String title, String desc, boolean inGlobalDb) {",
-    "        ALL.add(new Cve(ghsaId, cveId, groupId, severity, cvss, branch,",
+    "        ALL.add(new Cve(ghsaId, cveId, groupId, artifactId, severity, cvss, branch,",
     "                        low, lowIncl, high, highIncl, fixedIn, fixedAvailable,",
     "                        condKind, condText,",
     "                        markers.isEmpty() ? List.of() : List.of(markers.split(\",\")),",

@@ -42,6 +42,11 @@ public final class Triggers {
         put("FS_PROVIDER", "(?!)", "依赖里注册了第三方 FileSystemProvider(扫构件,不扫源码)");
         put("InetAddress", "\\bInetAddress\\b", "java.net.InetAddress 类型");
         put("ComparableProp", "\\bComparable\\s*(?:<[^>]*>)?\\s+\\w+\\s*[;=]", "Comparable 类型的字段声明");
+        put("StreamReadConstraints", "\\bStreamReadConstraints\\b|\\bsetStreamReadConstraints\\b", "显式配置过 StreamReadConstraints 限流");
+        put("CharInputParse", "\\b(?:readValue|readTree|createParser)\\s*\\(\\s*new\\s+(?:StringReader|CharArrayReader|InputStreamReader|FileReader)\\b", "从 String / Reader / char[] 解析(显式写法)");
+        put("AsyncParser", "\\bcreateNonBlockingByteArrayParser\\b|\\bfeedInput\\s*\\(|\\bNON_BLOCKING\\b", "非阻塞(async)解析器");
+        put("DataInputParse", "\\bjava\\.io\\.DataInput\\b|\\bcreateParser\\s*\\(\\s*(?:new\\s+)?\\w*DataInput", "从 java.io.DataInput 解析");
+        put("ByteOffsetParse", "\\b(?:readValue|createParser)\\s*\\(\\s*\\w+\\s*,\\s*\\d+\\s*,", "带 offset/length 的 byte[] 解析");
         put("ObjectMapper", "\\bObjectMapper\\b", "ObjectMapper(是否用到 jackson 的上锚)");
     }
 

@@ -40,26 +40,50 @@ public final class Scanner {
     /** 递归展开深度上限。fat jar 内的 jar 一般不再套 jar,留 2 层足够且防病态归档。 */
     private static final int MAX_DEPTH = 2;
 
-    private static final String MVN_2X = "meta-inf/maven/" + CveTable.GROUP_2X + "/"
-            + CveTable.ARTIFACT + "/pom.properties";
-    private static final String MVN_3X = "meta-inf/maven/" + CveTable.GROUP_3X + "/"
-            + CveTable.ARTIFACT + "/pom.properties";
+    /**
+     * 要扫的 artifactId —— v0.3.0 起是两个。
+     *
+     * <p>🔴 <b>v0.2.x 这里写死了一个 jackson-databind,于是 jackson-core 的洞一条都扫不出来</b>,
+     * 而扫描器不会因此报任何错:它只是安静地跳过所有 jackson-core-*.jar。
+     * <b>「没扫到」和「没有」在报告里长得一模一样。</b>
+     */
+    static final String[] ARTIFACTS = CveTable.ARTIFACTS;
 
+    /** 路径是不是某个 jackson 坐标的 pom.properties(两个 group × 两个 artifact)。 */
+    private static boolean isPomProps(String lower) {
+        for (String g : new String[]{CveTable.GROUP_2X, CveTable.GROUP_3X}) {
+            for (String a : ARTIFACTS) {
+                if (lower.endsWith("meta-inf/maven/" + g + "/" + a + "/pom.properties")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** {@code <artifact>-<版本>.jar};两个 artifact 都认,group(1)=artifactId、group(2)=版本。 */
     private static final Pattern NAME_VER =
-            Pattern.compile("^" + CveTable.ARTIFACT + "-(\\d[\\w.\\-]*)\\.jar$",
+            Pattern.compile("^(jackson-databind|jackson-core)-(\\d[\\w.\\-]*)\\.jar$",
                     Pattern.CASE_INSENSITIVE);
 
     /**
-     * 扫到的一份 jackson-databind。
+     * 扫到的一份 jackson 构件(v0.3.0 起可能是 jackson-databind,也可能是 jackson-core)。
      *
      * @param path    它在哪(fat jar 内的用 {@code !/} 分隔)
      * @param groupId 坐标的 groupId —— 2.x 与 3.x 不同,判定时必须区分
+     * @param artifactId 坐标的 artifactId —— {@code jackson-databind} 或 {@code jackson-core};
+     *                   🔴 两者<b>各自独立发版</b>,升了一个不代表另一个也升了
      * @param version 版本
      * @param source  坐标与版本取自哪里:pom.properties / MANIFEST / 文件名
      * @param guessedGroup groupId 是不是**按大版本推断**出来的(而非从元数据直接读到)
      */
-    public record Artifact(String path, String groupId, JacksonVersion version,
+    public record Artifact(String path, String groupId, String artifactId, JacksonVersion version,
                            String source, boolean guessedGroup) {
+
+        /** 完整坐标,判定与求交集都以它为键。 */
+        public String coord() {
+            return groupId + ":" + artifactId;
+        }
     }
 
     private final List<Artifact> found = new ArrayList<>();
@@ -195,7 +219,7 @@ public final class Scanner {
                 String name = e.getName().replace('\\', '/');
                 String lower = name.toLowerCase();
 
-                if (lower.endsWith(MVN_2X) || lower.endsWith(MVN_3X)) {
+                if (isPomProps(lower)) {
                     String c = readCoord(zis.readAllBytes());
                     if (c != null) {
                         coords.add(c);
@@ -254,16 +278,21 @@ public final class Scanner {
 
         if (!coords.isEmpty()) {
             for (String c : coords) {
-                int i = c.lastIndexOf(':');
-                String group = c.substring(0, i);
-                JacksonVersion v = JacksonVersion.parse(c.substring(i + 1));
+                // 形如 group:artifact:version
+                String[] parts = c.split(":", 3);
+                if (parts.length != 3) {
+                    continue;
+                }
+                String group = parts[0];
+                String art = parts[1];
+                JacksonVersion v = JacksonVersion.parse(parts[2]);
                 if (v == null) {
-                    warnings.add("在 " + path + " 里读到 " + group + ":" + CveTable.ARTIFACT
-                            + " 但版本号无法解析:" + c.substring(i + 1)
+                    warnings.add("在 " + path + " 里读到 " + group + ":" + art
+                            + " 但版本号无法解析:" + parts[2]
                             + "(🔴 这不等于「没有漏洞」,请手工确认版本)");
                     continue;
                 }
-                add(new Artifact(path, group, v, "pom.properties", false));
+                add(new Artifact(path, group, art, v, "pom.properties", false));
             }
             return;
         }
@@ -271,43 +300,55 @@ public final class Scanner {
         // 没有 pom.properties(被重打包过或极老的构建)—— 退回 MANIFEST
         if (mfSymbolic != null) {
             for (String g : new String[]{CveTable.GROUP_2X, CveTable.GROUP_3X}) {
-                if (mfSymbolic.equals(g + "." + CveTable.ARTIFACT)) {
+                for (String art : ARTIFACTS) {
+                    if (!mfSymbolic.equals(g + "." + art)) {
+                        continue;
+                    }
                     JacksonVersion v = JacksonVersion.parse(mfVersion);
                     if (v == null) {
-                        v = versionFromName(fileName);
+                        String[] fn = artifactAndVersionFromName(fileName);
+                        v = fn == null ? null : JacksonVersion.parse(fn[1]);
                     }
                     if (v == null) {
-                        warnings.add("识别出 " + g + ":" + CveTable.ARTIFACT + " 但取不到版本号:"
+                        warnings.add("识别出 " + g + ":" + art + " 但取不到版本号:"
                                 + path + "(🔴 这不等于「没有漏洞」,请手工确认版本)");
                         return;
                     }
-                    add(new Artifact(path, g, v, "MANIFEST", false));
+                    add(new Artifact(path, g, art, v, "MANIFEST", false));
                     return;
                 }
             }
         }
 
-        // 最后退回文件名。🔴 文件名里**没有 groupId** —— 两个坐标的 jar 叫一模一样的名字。
+        // 最后退回文件名。🔴 文件名里**没有 groupId** —— 两个 groupId 的 jar 叫一模一样的名字。
         //    只能按大版本推断:Central 上 com.fasterxml 只发过 2.x、tools.jackson 只发过 3.x
         //    (gen_rules.py 的 ASSERT8 每次重跑都会去 maven-metadata.xml 重新核实这个前提)。
         //    这是推断不是读到的,所以打 guessedGroup 标记,报告里要说出来。
-        JacksonVersion v = versionFromName(fileName);
+        //    ⚠️ artifactId 反过来:它**就写在文件名里**,不用猜。
+        String[] fn = artifactAndVersionFromName(fileName);
+        if (fn == null) {
+            return;                       // 不是 jackson 构件,正常跳过
+        }
+        JacksonVersion v = JacksonVersion.parse(fn[1]);
         if (v == null) {
-            return;                       // 不是 jackson-databind 构件,正常跳过
+            return;
         }
         String group = v.major() >= 3 ? CveTable.GROUP_3X : CveTable.GROUP_2X;
-        add(new Artifact(path, group, v, "文件名", true));
+        add(new Artifact(path, group, fn[0].toLowerCase(), v, "文件名", true));
     }
 
-    private static JacksonVersion versionFromName(String fileName) {
+    /** 从文件名取 {@code [artifactId, 版本]};不是 jackson 构件返回 null。 */
+    private static String[] artifactAndVersionFromName(String fileName) {
         Matcher m = NAME_VER.matcher(fileName);
-        return m.matches() ? JacksonVersion.parse(m.group(1)) : null;
+        return m.matches() ? new String[]{m.group(1), m.group(2)} : null;
     }
 
     /** 同一路径 + 同一坐标只记一条(重复上报会让人以为有两个问题 —— 第 5 注教训)。 */
     private void add(Artifact a) {
         for (Artifact x : found) {
-            if (x.path().equals(a.path()) && x.groupId().equals(a.groupId())) {
+            // 🔴 键必须是**完整坐标**:同一个 fat jar 里 databind 和 core 都在,
+            //    只比 groupId 会把其中一个安静地吃掉 —— 而那正是本版要修的盲区。
+            if (x.path().equals(a.path()) && x.coord().equals(a.coord())) {
                 return;
             }
         }
@@ -330,13 +371,20 @@ public final class Scanner {
         String g = p.getProperty("groupId");
         String a = p.getProperty("artifactId");
         String v = p.getProperty("version");
-        if (!CveTable.ARTIFACT.equals(a) || v == null) {
+        if (a == null || v == null) {
             return null;
+        }
+        boolean known = false;
+        for (String x : ARTIFACTS) {
+            known |= x.equals(a);
+        }
+        if (!known) {
+            return null;                  // 只认我们有判定表的 artifact
         }
         if (!CveTable.GROUP_2X.equals(g) && !CveTable.GROUP_3X.equals(g)) {
             return null;                  // 只认这两个 groupId,防第三方同名构件
         }
-        return g + ":" + v;
+        return g + ":" + a + ":" + v;
     }
 
     /**

@@ -23,7 +23,7 @@ import java.util.Set;
  */
 public final class Main {
 
-    private static final String VERSION = "0.2.0";
+    private static final String VERSION = "0.3.0";
 
     /** 退出码:0 = 没有版本命中;2 = 版本命中但源码里没找到触发条件;3 = 触发条件也成立。 */
     private static final int EXIT_CLEAN = 0;
@@ -150,27 +150,31 @@ public final class Main {
         List<Scanner.Artifact> arts = scanner.artifacts();
 
         out.println("=".repeat(78));
-        out.println("jackson-check " + VERSION + " —— jackson-databind "
-                + CveTable.OFFICIAL_TOTAL + " 条 2026 年安全公告自查");
+        // 🔴 v0.3.0 真构件复验抓到:这行原来写死「jackson-databind N 条」,
+        //    而 N 里有 7 条是 jackson-core 的 —— 报告第一行就在误导人。
+        out.println("jackson-check " + VERSION + " —— jackson-databind + jackson-core "
+                + CveTable.OFFICIAL_TOTAL + " 条安全公告自查");
         out.println("判定表来源:" + CveTable.GENERATED_FROM);
         out.println("=".repeat(78));
 
         // ── 一、扫到了什么 ──
         out.println();
-        out.println("【一】扫到的 jackson-databind");
+        out.println("【一】扫到的 jackson 构件(databind / core)");
         if (arts.isEmpty()) {
-            out.println("  未扫到任何 jackson-databind 构件。");
+            out.println("  未扫到任何 jackson-databind / jackson-core 构件。");
             out.println("  ⚠️ 这可能是因为你传的路径里没有构建产物 —— 先跑一次构建,再扫 target/ 或 jar 本身。");
         } else {
             for (Scanner.Artifact a : arts) {
-                out.printf("  %-30s %-12s  (版本来源:%s%s)%n", a.groupId(), a.version(),
+                // 🔴 必须印出 artifactId:真构件复验时这里只印 groupId,
+                //    扫到的是 jackson-core 却显示得和 databind 一模一样。
+                out.printf("  %-46s %-12s  (版本来源:%s%s)%n", a.coord(), a.version(),
                         a.source(), a.guessedGroup() ? ",groupId 按大版本推断" : "");
                 out.println("      " + a.path());
             }
             Set<String> groups = new LinkedHashSet<>();
             arts.forEach(a -> groups.add(a.groupId()));
             if (groups.size() > 1) {
-                out.println("  ⚠️ 同时扫到两个坐标的 jackson-databind。Jackson 3 换了 groupId,");
+                out.println("  ⚠️ 同时扫到两个 groupId 的 jackson。Jackson 3 换了 groupId,");
                 out.println("     两份会同时出现在 classpath 上 —— 这本身通常是依赖冲突,建议先统一。");
             }
         }
@@ -292,12 +296,15 @@ public final class Main {
                         c.severity() + (c.cvss() > 0 ? " " + c.cvss() : ""), c.title());
                 if (!c.inGlobalDb() && v.versionHit()) {
                     out.println("        🔴 GitHub 全局漏洞库还没收录这条 —— Dependabot 不会报:"
-                            + "https://github.com/FasterXML/jackson-databind/security/advisories/" + c.ghsaId());
+                            // 🔴 v0.3.0:链接必须跟着 artifactId 走。原来写死 jackson-databind,
+                            //    core 那几条点开是 404 —— 给一个打不开的链接,比不给更糟。
+                            + "https://github.com/FasterXML/" + c.artifactId()
+                            + "/security/advisories/" + c.ghsaId());
                 }
                 if (!detail) {
                     continue;
                 }
-                out.println("        坐标   " + c.groupId() + " · 你的版本 " + v.version()
+                out.println("        坐标   " + c.coord() + " · 你的版本 " + v.version()
                         + " · 受影响 " + c.rangeText());
                 out.println("        条件   " + c.condText());
                 if (!v.found().isEmpty()) {
@@ -324,7 +331,7 @@ public final class Main {
             out.println("  没有需要升级的坐标。");
         } else {
             for (Remediation.Plan p : plans) {
-                out.printf("  %s%n", p.groupId());
+                out.printf("  %s%n", p.coord());
                 out.printf("      现在 %s  →  升到 %s%s%n",
                         p.current() == null ? "(未知)" : p.current(), p.target(),
                         p.available() ? "" : "  🔴 这个版本在 Maven Central 上拿不到");
@@ -335,7 +342,7 @@ public final class Main {
                 }
                 if (!p.available()) {
                     out.println("      🔴 advisory 把这个修复版挂在了错的坐标上 —— "
-                            + "Central 上 " + p.groupId() + " 根本没有发布过这条大版本线,详见【五】");
+                            + "Central 上 " + p.coord() + " 根本没有发布过这条大版本线,详见【五】");
                 }
             }
             List<Cve> beyond = Remediation.beyondLowestFix(versionHitRules);

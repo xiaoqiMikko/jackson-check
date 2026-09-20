@@ -19,6 +19,17 @@ public record Cve(
         String cveId,
         /** 受影响坐标的 groupId:{@code com.fasterxml.jackson.core}(2.x)或 {@code tools.jackson.core}(3.x) */
         String groupId,
+        /**
+         * 受影响坐标的 artifactId:{@code jackson-databind} 或 {@code jackson-core}。
+         *
+         * <p>🔴 <b>v0.3.0 加的,而它补的是一个真实的盲区</b>:`CVE-2026-68498`(high,2026-09-12)
+         * 挂在 <b>jackson-core</b> 上 —— 字符输入路径(`readValue(String)`)里 `maxNameLength` 形同虚设。
+         * v0.2.x 的判定表整张只有 {@code jackson-databind} 一个 artifactId,
+         * <b>扫 databind 永远扫不出 core 的洞</b>,而两者是各自独立发版的坐标
+         * (`jackson-core` 的 dependents 17,812,比 databind 还多)。
+         * <p>🔑 同第 24 注那条教训的同型:<b>同一个项目名下,不同模块的「修完」版本并不一样</b>。
+         */
+        String artifactId,
         /** GitHub advisory 评级:low / medium / high / critical */
         String severity,
         /** CVSS v3 分数;-1 表示未给出 */
@@ -74,6 +85,17 @@ public record Cve(
          * 此前的条目发布后 5~11 天就进了全局库,这 4 条到 09-14 已 13~24 天。
          */
         boolean inGlobalDb) {
+
+    /**
+     * 完整坐标 {@code groupId:artifactId}。
+     *
+     * <p>🔴 <b>判定、求交集、报「未扫到」全部以它为键,不许只用 groupId</b> ——
+     * 同一个 groupId 下有 {@code jackson-databind} 和 {@code jackson-core} 两个独立发版的 artifact,
+     * 只按 groupId 分组会把两者的修复版混进同一次求交集,给出一个谁都不对的版本号。
+     */
+    public String coord() {
+        return groupId + ":" + artifactId;
+    }
 
     /** 报告里显示的编号:有 CVE 号用 CVE 号,没有就用 GHSA 号。 */
     public String displayId() {

@@ -21,13 +21,13 @@ class RemediationTest {
     private static List<Cve> hitsFor(String group, String version) {
         JacksonVersion v = JacksonVersion.parse(version);
         return CveTable.all().stream()
-                .filter(c -> c.groupId().equals(group))
+                .filter(c -> c.groupId().equals(group) && c.artifactId().equals(CveTable.ARTIFACT_DATABIND))
                 .filter(c -> v.inRange(c.low(), c.lowIncl(), c.high(), c.highIncl()))
                 .toList();
     }
 
     private static List<Scanner.Artifact> art(String group, String version) {
-        return List.of(new Scanner.Artifact("test.jar", group, JacksonVersion.parse(version),
+        return List.of(new Scanner.Artifact("test.jar", group, CveTable.ARTIFACT_DATABIND, JacksonVersion.parse(version),
                 "pom.properties", false));
     }
 

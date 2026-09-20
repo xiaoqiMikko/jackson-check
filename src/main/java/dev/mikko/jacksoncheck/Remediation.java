@@ -30,7 +30,7 @@ import java.util.Map;
 public final class Remediation {
 
     /**
-     * @param groupId    该升哪个坐标
+     * @param coord      该升哪个坐标({@code groupId:artifactId})
      * @param target     目标版本
      * @param available  这个版本在 Maven Central 上拿不拿得到
      * @param current    你现在的版本
@@ -38,7 +38,7 @@ public final class Remediation {
      * @param covers     升到它能盖住的条目编号
      * @param drivenBy   把目标顶到这么高的那条(即「照单条 advisory 升级会漏的那条」)
      */
-    public record Plan(String groupId, String target, boolean available, JacksonVersion current,
+    public record Plan(String coord, String target, boolean available, JacksonVersion current,
                        boolean crossBranch, List<String> covers, String drivenBy) {
     }
 
@@ -48,16 +48,18 @@ public final class Remediation {
      * @param hits 版本命中的规则(触发条件是否成立不影响升级目标 —— 装了受影响版本就该升)
      */
     public static List<Plan> plan(List<Cve> hits, List<Scanner.Artifact> scanned) {
-        // key = groupId + "|" + 大版本线,例如 "com.fasterxml.jackson.core|2"
+        // key = 坐标 + "|" + 大版本线,例如 "com.fasterxml.jackson.core:jackson-core|2"
+        // 🔴 v0.3.0 由 groupId 改成**完整坐标**:databind 和 core 各自发版,
+        //    混在一组求交集会给出一个对谁都不对的版本号。
         Map<String, List<Cve>> byLine = new LinkedHashMap<>();
         for (Cve c : hits) {
             String line = c.fixedIn().isEmpty() ? "?" : c.fixedIn().split("\\.")[0];
-            byLine.computeIfAbsent(c.groupId() + "|" + line, k -> new ArrayList<>()).add(c);
+            byLine.computeIfAbsent(c.coord() + "|" + line, k -> new ArrayList<>()).add(c);
         }
 
         List<Plan> plans = new ArrayList<>();
         for (Map.Entry<String, List<Cve>> e : byLine.entrySet()) {
-            String group = e.getKey().substring(0, e.getKey().indexOf('|'));
+            String coord = e.getKey().substring(0, e.getKey().indexOf('|'));
             Cve top = null;
             for (Cve c : e.getValue()) {
                 if (c.fixedIn().isEmpty()) {
@@ -73,7 +75,7 @@ public final class Remediation {
             // 你当前装的、属于这个坐标的版本(取最低的那份 —— 它是短板)
             JacksonVersion current = null;
             for (Scanner.Artifact a : scanned) {
-                if (a.groupId().equals(group)
+                if (a.coord().equals(coord)
                         && (current == null || a.version().compareTo(current) < 0)) {
                     current = a.version();
                 }
@@ -86,7 +88,7 @@ public final class Remediation {
                     covers.add(c.displayId());
                 }
             }
-            plans.add(new Plan(group, top.fixedIn(), top.fixedAvailable(), current, cross,
+            plans.add(new Plan(coord, top.fixedIn(), top.fixedAvailable(), current, cross,
                     covers, top.displayId()));
         }
         return plans;
@@ -102,7 +104,7 @@ public final class Remediation {
             if (c.fixedIn().isEmpty()) {
                 continue;
             }
-            String k = c.groupId() + "|" + c.fixedIn().split("\\.")[0];
+            String k = c.coord() + "|" + c.fixedIn().split("\\.")[0];
             String cur = lowest.get(k);
             if (cur == null || newer(cur, c.fixedIn())) {
                 lowest.put(k, c.fixedIn());
@@ -113,7 +115,7 @@ public final class Remediation {
             if (c.fixedIn().isEmpty()) {
                 continue;
             }
-            String k = c.groupId() + "|" + c.fixedIn().split("\\.")[0];
+            String k = c.coord() + "|" + c.fixedIn().split("\\.")[0];
             if (newer(c.fixedIn(), lowest.get(k))) {
                 out.add(c);
             }

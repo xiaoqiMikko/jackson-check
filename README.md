@@ -1,6 +1,6 @@
 # jackson-check
 
-**jackson-databind 2026 年 15 条安全公告自查工具。零依赖单 jar,不联网。**
+**jackson-databind + jackson-core 共 22 条安全公告自查工具。零依赖单 jar,不联网。**
 
 它回答三个 Dependabot 回答不了的问题:
 
@@ -13,6 +13,38 @@ java -jar jackson-check.jar ./target ./src
 ```
 
 ---
+
+## 🔴 v0.3.0(2026-09-21):`jackson-core` 是**另一个坐标**,扫 databind 扫不出它
+
+v0.2.x 的判定表整张只有 `jackson-databind` 一个 artifactId。于是 FasterXML 在
+**`jackson-core`** 仓库发的 7 条公告,这个工具**一条都扫不出来** ——
+而它不会因此报任何错,只是安静地跳过所有 `jackson-core-*.jar`。
+**「没扫到」和「你很安全」在报告里长得一模一样。**
+
+v0.3.0 把判定粒度从 `advisory × groupId × 区间` 改成 **`advisory × groupId × artifactId × 区间`**,
+判定、求交集、「未扫到这个坐标」全部以**完整坐标**为键。
+
+**最该注意的一条 —— `CVE-2026-68498`(high 7.5,2026-09-12)**:
+`StreamReadConstraints.maxNameLength`(默认 5 万字符)**在字符输入路径上没生效**。
+`ReaderBasedJsonParser` 累积属性名时调的是**字符串**长度上限(默认 1 亿,约 2000 倍),
+真正的 name 校验要等整个 key 扫完才跑 —— 那时约 200MB 已经分配掉了。
+单个超长 JSON key 即可,**默认配置就中**。
+
+- 受影响:`>= 2.16.0, <= 2.18.9` → **2.18.10** · `>= 2.19.0, <= 2.21.5` → **2.21.6** ·
+  `>= 2.22.0, <= 2.22.1` → **2.22.2** · 3.x(`tools.jackson.core`)`<= 3.1.5` → **3.1.6** · `<= 3.2.1` → **3.2.2**
+- **字节输入不中**:`UTF8StreamJsonParser` 每次扩缓冲都重校验。
+  从 `byte[]` / `InputStream` 解析的不受影响;从 `String` / `Reader` / `char[]` 解析的才中。
+- 字节码实测双向:`validateNameLength` 的调用**只在修复版的 `ReaderBasedJsonParser` 里有**,
+  中招版里没有(2.18.9→2.18.10 · 2.21.5→2.21.6 · 3.1.5→3.1.6 三条线全复现)。
+
+> ⚠️ **工具能力边界,写在这里免得被误读**:本工具判得了 **jar 版本**,
+> **判不了你的调用方式** —— `readValue(someStringVariable, …)` 这种最常见的写法,
+> 文本扫描看不出那个变量是 `String` 还是 `byte[]`。
+> 所以「未找到触发条件」**不等于**你不受影响,报告里也是这么印的。
+
+> 🔴 **不要读成「Dependabot 对 jackson-core 全瞎」**:`jackson-core` 那 7 条里
+> **只有 `CVE-2026-68498` 一条**在 GitHub 全局漏洞库查不到,其余 6 条都已收录、Dependabot 正常告警。
+> 这一条由 `gen_rules.py` 的 `ASSERT-C2` 每次重跑复核,**数字一变就拒绝生成**。
 
 ## 🔴 v0.2.0(2026-09-14):08-21 / 09-01 又发了 4 条,GitHub 全局漏洞库至今没收录
 

@@ -87,7 +87,7 @@ class NewMarkersTest {
                 .filter(x -> x.groupId().equals(CveTable.GROUP_2X))
                 .filter(x -> JacksonVersion.parse("2.21.5").inRange(x.low(), x.lowIncl(), x.high(), x.highIncl()))
                 .findFirst().orElseThrow();
-        List<Scanner.Artifact> art = List.of(new Scanner.Artifact("t.jar", CveTable.GROUP_2X,
+        List<Scanner.Artifact> art = List.of(new Scanner.Artifact("t.jar", CveTable.GROUP_2X, CveTable.ARTIFACT_DATABIND,
                 JacksonVersion.parse("2.21.5"), "pom.properties", false));
         assertEquals(Applicability.Kind.HIT_PARTIAL, Applicability.judge(c, art, src, List.of()).kind());
         assertEquals(Applicability.Kind.HIT,

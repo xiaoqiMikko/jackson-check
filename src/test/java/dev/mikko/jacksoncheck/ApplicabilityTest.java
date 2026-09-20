@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ApplicabilityTest {
 
     private static List<Scanner.Artifact> art(String group, String version) {
-        return List.of(new Scanner.Artifact("test.jar", group, JacksonVersion.parse(version),
+        return List.of(new Scanner.Artifact("test.jar", group, CveTable.ARTIFACT_DATABIND, JacksonVersion.parse(version),
                 "pom.properties", false));
     }
 
@@ -31,7 +31,7 @@ class ApplicabilityTest {
     /** 真实判定表里第一条针对 @JsonView 的规则(CVE-2026-54517)。 */
     private static Cve jsonViewRule() {
         return CveTable.all().stream()
-                .filter(c -> c.condKind().equals("JSONVIEW") && c.groupId().equals(CveTable.GROUP_2X))
+                .filter(c -> c.condKind().equals("JSONVIEW") && c.coord().equals(CveTable.GROUP_2X + ":" + CveTable.ARTIFACT_DATABIND))
                 .findFirst().orElseThrow();
     }
 
@@ -121,9 +121,9 @@ class ApplicabilityTest {
         // CVE-2026-54515 在 2.21.2 和 3.1.2 上都中。按「条目」归并只会留下一条,
         // 用户看到的版本号是另一个坐标的 —— 那是安静地丢掉一半信息。
         List<Scanner.Artifact> both = List.of(
-                new Scanner.Artifact("v2.jar", CveTable.GROUP_2X,
+                new Scanner.Artifact("v2.jar", CveTable.GROUP_2X, CveTable.ARTIFACT_DATABIND,
                         JacksonVersion.parse("2.21.2"), "pom.properties", false),
-                new Scanner.Artifact("v3.jar", CveTable.GROUP_3X,
+                new Scanner.Artifact("v3.jar", CveTable.GROUP_3X, CveTable.ARTIFACT_DATABIND,
                         JacksonVersion.parse("3.1.2"), "pom.properties", false));
         List<Cve> hits = CveTable.all().stream()
                 .filter(c -> c.ghsaId().equals("GHSA-5jmj-h7xm-6q6v"))   // CVE-2026-54515
@@ -138,9 +138,9 @@ class ApplicabilityTest {
     void anyVersionHits(@TempDir Path dir) throws IOException {
         Cve c = jsonViewRule();
         List<Scanner.Artifact> two = List.of(
-                new Scanner.Artifact("new.jar", CveTable.GROUP_2X,
+                new Scanner.Artifact("new.jar", CveTable.GROUP_2X, CveTable.ARTIFACT_DATABIND,
                         JacksonVersion.parse("2.21.9"), "pom.properties", false),
-                new Scanner.Artifact("old.jar", CveTable.GROUP_2X,
+                new Scanner.Artifact("old.jar", CveTable.GROUP_2X, CveTable.ARTIFACT_DATABIND,
                         JacksonVersion.parse("2.21.2"), "pom.properties", false));
         SourceScan s = src(dir, "public class X { @JsonView(A.class) List<String> r; }\n");
         Applicability.Verdict v = Applicability.judge(c, two, s);

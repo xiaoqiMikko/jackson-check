@@ -44,7 +44,12 @@ public final class Applicability {
         NO_SOURCE_SCAN,
         /** 装了这个坐标,但版本不在受影响区间内。 */
         VERSION_SAFE,
-        /** 没扫到这条规则针对的坐标(比如你只用 2.x,而这条挂在 3.x 坐标上)。 */
+        /**
+         * 没扫到这条规则针对的坐标。
+         *
+         * <p>两种常见情形:你只用 2.x 而这条挂在 3.x 坐标上;
+         * 或者你装了 {@code jackson-databind} 而这条挂在 {@code jackson-core} 上(v0.3.0 起才分得开)。
+         */
         NOT_PRESENT
     }
 
@@ -98,7 +103,10 @@ public final class Applicability {
         Scanner.Artifact hit = null;
         Scanner.Artifact anySameGroup = null;
         for (Scanner.Artifact a : scanned) {
-            if (!a.groupId().equals(cve.groupId())) {
+            // 🔴 v0.3.0:比的是**完整坐标**不是 groupId。
+            //    同一个 groupId 下 jackson-databind 与 jackson-core 各自发版,
+            //    只比 groupId 会拿 databind 的版本去判 core 的规则 —— 那是把答案凭空编出来。
+            if (!a.coord().equals(cve.coord())) {
                 continue;
             }
             anySameGroup = anySameGroup == null ? a : anySameGroup;
@@ -110,7 +118,7 @@ public final class Applicability {
         if (hit == null) {
             if (anySameGroup == null) {
                 return new Verdict(Kind.NOT_PRESENT, null, "", List.of(), List.of(),
-                        "未扫到 " + cve.groupId() + ":" + CveTable.ARTIFACT);
+                        "未扫到 " + cve.coord());
             }
             return new Verdict(Kind.VERSION_SAFE, anySameGroup.version(), anySameGroup.path(),
                     List.of(), List.of(),

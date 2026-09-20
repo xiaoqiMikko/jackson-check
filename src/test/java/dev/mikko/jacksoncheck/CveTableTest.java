@@ -24,8 +24,20 @@ class CveTableTest {
     void tableIsNotEmpty() {
         assertTrue(CveTable.all().size() >= 30,
                 "只有 " + CveTable.all().size() + " 条规则 —— 生成八成失败了");
-        // 08-07 首版是 11 条;08-21 / 09-01 又发了 4 条(v0.2.0,2026-09-14)
-        assertEquals(15, CveTable.OFFICIAL_TOTAL, "2026 年这批截至 09-14 是 15 条");
+        // 08-07 首版是 11 条;08-21 / 09-01 又发了 4 条(v0.2.0,09-14);
+        // v0.3.0(09-21)加进 jackson-core 的 7 条 → 15 + 7 = 22
+        assertEquals(22, CveTable.OFFICIAL_TOTAL, "databind 15 条 + core 7 条");
+
+        // 🔴 **按坐标分别钉死,不许只钉总数** —— 总数对得上、两边各自错一个方向
+        //    (databind 少收一条、core 多算一条)照样能凑出 22,而那正是会出错的地方。
+        long databind = CveTable.all().stream()
+                .filter(c -> c.artifactId().equals(CveTable.ARTIFACT_DATABIND))
+                .map(Cve::ghsaId).distinct().count();
+        long core = CveTable.all().stream()
+                .filter(c -> c.artifactId().equals(CveTable.ARTIFACT_CORE))
+                .map(Cve::ghsaId).distinct().count();
+        assertEquals(15, databind, "jackson-databind 那批是 15 条");
+        assertEquals(7, core, "jackson-core 那批是 7 条(v0.3.0 新增坐标)");
     }
 
     @Test
@@ -96,12 +108,21 @@ class CveTableTest {
     void blindSpotIsMeasuredNotAssumed() {
         // 数字本身会变(GitHub 收录后会回到 0),重要的是它有来源:
         // gen_rules.py 的 ASSERT2 每次重跑都会逐个按 GHSA 号去全局库复核。
-        assertEquals(4, CveTable.DEPENDABOT_BLIND);
+        assertEquals(5, CveTable.DEPENDABOT_BLIND);
         Set<String> blind = CveTable.all().stream().filter(c -> !c.inGlobalDb())
                 .map(Cve::ghsaId).collect(Collectors.toSet());
         assertEquals(Set.of("GHSA-q4xh-88c3-wmh7", "GHSA-wjgm-6hv5-3cvf",
-                "GHSA-vvgp-rfg2-7rr6", "GHSA-gx83-3vf8-gh7j"), blind,
-                "盲区必须正好是 08-21 / 09-01 那 4 条 —— 常数和逐条标记要对得上");
+                "GHSA-vvgp-rfg2-7rr6", "GHSA-gx83-3vf8-gh7j", "GHSA-649p-m576-vr99"), blind,
+                "盲区 = databind 那 4 条 + core 的 CVE-2026-68498 —— 常数和逐条标记要对得上");
+
+        // 🔴 **jackson-core 的盲区必须正好 1 条,不许多**(第 32 注的文案红线靠这一条守):
+        //    7 条 core 公告里其余 6 条**全局库收了、Dependabot 正常报**,
+        //    所以「Dependabot 对 jackson-core 全瞎」是错的,一个字都不许写(同 bc-check 那条)。
+        Set<String> coreBlind = CveTable.all().stream()
+                .filter(c -> c.artifactId().equals(CveTable.ARTIFACT_CORE))
+                .filter(c -> !c.inGlobalDb()).map(Cve::ghsaId).collect(Collectors.toSet());
+        assertEquals(Set.of("GHSA-649p-m576-vr99"), coreBlind,
+                "core 侧只有 68498 一条查不到;变了就说明信息差变了,文案要改");
     }
 
     @Test
