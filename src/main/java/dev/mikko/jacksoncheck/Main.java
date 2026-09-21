@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -126,7 +127,7 @@ public final class Main {
 
     private static void usage(PrintStream out) {
         out.println("""
-                jackson-check %s —— jackson-databind 2026 年 %d 条安全公告自查
+                jackson-check %s —— jackson-databind + jackson-core %d 条安全公告自查
 
                 用法:java -jar jackson-check.jar <路径...> [选项]
 
@@ -280,18 +281,28 @@ public final class Main {
                 Applicability.Kind.NO_SOURCE_SCAN,
                 Applicability.Kind.VERSION_HIT_NO_TRIGGER,
                 Applicability.Kind.VERSION_SAFE, Applicability.Kind.NOT_PRESENT}) {
+            boolean detail = k != Applicability.Kind.VERSION_SAFE
+                    && k != Applicability.Kind.NOT_PRESENT || showAll;
+            // 🔴 v0.3.0:折叠分组按坐标分段并印出坐标。
+            //    归并粒度是「条目 × 坐标」,同一条 CVE 会在 2.x 坐标下「版本中」、在 3.x 坐标下「没扫到」;
+            //    折叠行不印坐标时,读者看到的是同一个编号既中又没扫到(真 jar 端到端时自己读报告读懵了)。
             List<String> ids = best.entrySet().stream()
-                    .filter(e -> e.getValue().kind() == k).map(Map.Entry::getKey).toList();
+                    .filter(e -> e.getValue().kind() == k).map(Map.Entry::getKey)
+                    .sorted(detail ? (a, b) -> 0 : Comparator.comparing((String key) -> repr.get(key).coord()))
+                    .toList();
             if (ids.isEmpty()) {
                 continue;
             }
-            boolean detail = k != Applicability.Kind.VERSION_SAFE
-                    && k != Applicability.Kind.NOT_PRESENT || showAll;
             out.println();
             out.println("  " + kindLabel(k) + "(" + ids.size() + " 条)");
+            String lastCoord = null;
             for (String id : ids) {
                 Cve c = repr.get(id);
                 Applicability.Verdict v = best.get(id);
+                if (!detail && !c.coord().equals(lastCoord)) {
+                    out.println("    ── " + c.coord());
+                    lastCoord = c.coord();
+                }
                 out.printf("    %-22s %-8s %s%n", c.displayId(),
                         c.severity() + (c.cvss() > 0 ? " " + c.cvss() : ""), c.title());
                 if (!c.inGlobalDb() && v.versionHit()) {
