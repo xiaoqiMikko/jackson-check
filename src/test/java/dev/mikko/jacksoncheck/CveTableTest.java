@@ -26,7 +26,8 @@ class CveTableTest {
                 "只有 " + CveTable.all().size() + " 条规则 —— 生成八成失败了");
         // 08-07 首版是 11 条;08-21 / 09-01 又发了 4 条(v0.2.0,09-14);
         // v0.3.0(09-21)加进 jackson-core 的 7 条 → 15 + 7 = 22
-        assertEquals(22, CveTable.OFFICIAL_TOTAL, "databind 15 条 + core 7 条");
+        // v0.4.0(10-05)再并入 09-30 / 10-01 新发的 4 条(databind 2 + core 2)→ 17 + 9 = 26
+        assertEquals(26, CveTable.OFFICIAL_TOTAL, "databind 17 条 + core 9 条");
 
         // 🔴 **按坐标分别钉死,不许只钉总数** —— 总数对得上、两边各自错一个方向
         //    (databind 少收一条、core 多算一条)照样能凑出 22,而那正是会出错的地方。
@@ -36,8 +37,8 @@ class CveTableTest {
         long core = CveTable.all().stream()
                 .filter(c -> c.artifactId().equals(CveTable.ARTIFACT_CORE))
                 .map(Cve::ghsaId).distinct().count();
-        assertEquals(15, databind, "jackson-databind 那批是 15 条");
-        assertEquals(7, core, "jackson-core 那批是 7 条(v0.3.0 新增坐标)");
+        assertEquals(17, databind, "jackson-databind 那批是 17 条(v0.4.0 +2)");
+        assertEquals(9, core, "jackson-core 那批是 9 条(v0.3.0 的 7 条 + v0.4.0 的 2 条)");
     }
 
     @Test
@@ -104,16 +105,17 @@ class CveTableTest {
     }
 
     @Test
-    @DisplayName("🔴 Dependabot 盲区数是查了两个源得出的:08-07 为 0,09-14 为 4")
+    @DisplayName("🔴 Dependabot 盲区数是查了两个源得出的:08-07 为 0,09-14 为 4,09-21 为 5,10-05 回到 1")
     void blindSpotIsMeasuredNotAssumed() {
         // 数字本身会变(GitHub 收录后会回到 0),重要的是它有来源:
         // gen_rules.py 的 ASSERT2 每次重跑都会逐个按 GHSA 号去全局库复核。
-        assertEquals(5, CveTable.DEPENDABOT_BLIND);
+        // 🔴 2026-10-05:databind 那 4 条已于 09-28 被全局库收录(Dependabot 开始报了),
+        //    盲区从 5 回到 1 —— 「Dependabot 不报这 4 条」从那天起是过时说法。
+        assertEquals(1, CveTable.DEPENDABOT_BLIND);
         Set<String> blind = CveTable.all().stream().filter(c -> !c.inGlobalDb())
                 .map(Cve::ghsaId).collect(Collectors.toSet());
-        assertEquals(Set.of("GHSA-q4xh-88c3-wmh7", "GHSA-wjgm-6hv5-3cvf",
-                "GHSA-vvgp-rfg2-7rr6", "GHSA-gx83-3vf8-gh7j", "GHSA-649p-m576-vr99"), blind,
-                "盲区 = databind 那 4 条 + core 的 CVE-2026-68498 —— 常数和逐条标记要对得上");
+        assertEquals(Set.of("GHSA-649p-m576-vr99"), blind,
+                "盲区只剩 core 的 CVE-2026-68498 —— 常数和逐条标记要对得上");
 
         // 🔴 **jackson-core 的盲区必须正好 1 条,不许多**(第 32 注的文案红线靠这一条守):
         //    7 条 core 公告里其余 6 条**全局库收了、Dependabot 正常报**,

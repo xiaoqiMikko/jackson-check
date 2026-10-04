@@ -41,6 +41,8 @@ public final class Triggers {
         put("NioPath", "\\bjava\\.nio\\.file\\.(?:Path\\b|\\*)", "java.nio.file.Path 类型");
         put("FS_PROVIDER", "(?!)", "依赖里注册了第三方 FileSystemProvider(扫构件,不扫源码)");
         put("InetAddress", "\\bInetAddress\\b", "java.net.InetAddress 类型");
+        put("defaultImpl", "\\bdefaultImpl\\s*=", "@JsonTypeInfo 的 defaultImpl 兜底");
+        put("@JsonIdentityInfo", "@JsonIdentityInfo\\b", "@JsonIdentityInfo 注解");
         put("ComparableProp", "\\bComparable\\s*(?:<[^>]*>)?\\s+\\w+\\s*[;=]", "Comparable 类型的字段声明");
         put("StreamReadConstraints", "\\bStreamReadConstraints\\b|\\bsetStreamReadConstraints\\b", "显式配置过 StreamReadConstraints 限流");
         put("CharInputParse", "\\b(?:readValue|readTree|createParser)\\s*\\(\\s*new\\s+(?:StringReader|CharArrayReader|InputStreamReader|FileReader)\\b", "从 String / Reader / char[] 解析(显式写法)");

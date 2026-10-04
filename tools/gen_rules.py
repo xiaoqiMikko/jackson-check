@@ -149,6 +149,22 @@ CONDITIONS = {
         "(activateDefaultTyping 必须传 validator,不受影响)",
         ["@JsonTypeInfo", "ComparableProp"],
         ["DefaultBaseTypeLimitingValidator", "java.lang.Comparable", "@JsonTypeInfo"]),
+    # ── v0.4.0(2026-10-05)新增:09-30 发布的 2 条(均 high 7.5,均 DoS)──
+    # 🔴 这两条**发布当天就进了 GitHub 全局库**,Dependabot 正常告警 —— 不是盲区,
+    #    并入的理由只有一个:它们把各分支「一次修完」的版本又往上顶了一格。
+    "GHSA-wv8q-qhhj-9h54": (
+        "POLYMORPHIC_DEFAULT_IMPL",
+        "仅当用了按名字的多态(@JsonTypeInfo(use = Id.NAME))并配了 defaultImpl 兜底,"
+        "攻击者能反复提交不同的未知 type id,且 mapper 是长期复用的"
+        "(每个未知 id 都会在进程生命周期的缓存里留一条,内存只增不减)",
+        ["@JsonTypeInfo", "defaultImpl"],
+        ["defaultImpl", "_deserializers", "long-lived mapper"]),
+    "GHSA-cxp5-3px4-pw24": (
+        "IDENTITY_COLLECTION",
+        "仅当把不可信 JSON 反序列化进带 @JsonIdentityInfo 的集合或 Map"
+        "(N 个前向引用按逆序补定义,比较次数约 N²/2;不需要深层嵌套)",
+        ["@JsonIdentityInfo"],
+        ["@JsonIdentityInfo", "resolveForwardReference", "quadratic"]),
 }
 
 # 源码标记 → (正则, 中文名)。
@@ -187,6 +203,9 @@ MARKERS = {
     "FS_PROVIDER": (r"(?!)", "依赖里注册了第三方 FileSystemProvider(扫构件,不扫源码)"),
     # \b 两侧是单词边界,InetSocketAddress 不会被当成 InetAddress
     "InetAddress": (r"\bInetAddress\b", "java.net.InetAddress 类型"),
+    # ── v0.4.0 ──
+    "defaultImpl": (r"\bdefaultImpl\s*=", "@JsonTypeInfo 的 defaultImpl 兜底"),
+    "@JsonIdentityInfo": (r"@JsonIdentityInfo\b", "@JsonIdentityInfo 注解"),
     "ComparableProp": (r"\bComparable\s*(?:<[^>]*>)?\s+\w+\s*[;=]", "Comparable 类型的字段声明"),
     # ── v0.3.0:jackson-core 那 7 条用的标记 ──
     # 🔴 这一组的共同边界:**它们判的是「你从什么源头解析」,而源头常常是个变量**
@@ -261,6 +280,20 @@ CONDITIONS_CORE = {
         "仅当从**带 offset/length 的 byte[]** 解析,且把异常信息透给了外部(异常里可能夹带最多 500 字节内存内容)",
         ["ByteOffsetParse"],
         ["JsonLocation", "offset"]),
+    # ── v0.4.0(2026-10-05)新增:10-01 发布的 2 条(均 high 7.5,均已进全局库)──
+    "GHSA-7hhh-6rmp-j9qf": (
+        "DATA_INPUT",
+        "仅当从 java.io.DataInput 解析(UTF8DataInputJsonParser 这条路径):"
+        "畸形 token 会被整个拼进异常信息,不受 maxErrorTokenLength 限制;"
+        "公告原文写明这条路径没有任何配置能缓解",
+        ["DataInputParse"],
+        ["UTF8DataInputJsonParser", "maxErrorTokenLength", "no fallback control"]),
+    "GHSA-p6pp-m3f8-5c89": (
+        "STRING_TO_NUMBER",
+        "把不可信 JSON 里的**字符串**绑定到数值类型字段即可能中(jackson-databind 默认会做这种转换):"
+        "超长的「像数字」的字符串走的是 maxStringLength(默认 2000 万)而不是 maxNumberLength(默认 1000)",
+        [ANCHOR_MARKER],
+        ["looksLikeValidNumber", "maxStringLength", "coerces a String-typed JSON field to a number"]),
 }
 
 
@@ -844,8 +877,9 @@ out = [
     "    /**",
     "     * 官方发布了、但按两个坐标都查不到的条目数 —— 即进不了 Dependabot 告警的数量。",
     "     *",
-    "     * <p>🔴 08-07 首版实测为 0;09-14 为 4;2026-09-21 加入 jackson-core 后为 5",
-    "     * (databind 4 条 + core 的 CVE-2026-68498)。",
+    "     * <p>🔴 08-07 首版实测为 0;09-14 为 4;2026-09-21 加入 jackson-core 后为 5;",
+    "     * <b>2026-10-05 重跑为 1</b>:databind 那 4 条已于 09-28 被全局库收录,",
+    "     * 只剩 core 的 CVE-2026-68498 一条。",
     "     * 每条都逐个按 GHSA 号复核过,gen_rules.py 的 ASSERT2 每次重跑都会重新核实。",
     "     */",
     "    public static final int DEPENDABOT_BLIND = %d;" % len(blind),

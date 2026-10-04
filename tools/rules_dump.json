@@ -10,7 +10,7 @@
    "high_incl": false,
    "fixed": "3.1.6",
    "branch": "3.1",
-   "in_global": false,
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -23,7 +23,7 @@
    "high_incl": false,
    "fixed": "3.2.2",
    "branch": "3.2",
-   "in_global": false,
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -36,7 +36,7 @@
    "high_incl": false,
    "fixed": "2.18.10",
    "branch": "2.18",
-   "in_global": false,
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -49,7 +49,7 @@
    "high_incl": false,
    "fixed": "2.21.6",
    "branch": "2.21",
-   "in_global": false,
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -62,7 +62,7 @@
    "high_incl": false,
    "fixed": "2.22.2",
    "branch": "2.22",
-   "in_global": false,
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -530,7 +530,7 @@
    "high_incl": false,
    "fixed": "3.2.2",
    "branch": "3.2",
-   "in_global": false,
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -543,7 +543,7 @@
    "high_incl": false,
    "fixed": "3.1.6",
    "branch": "3.1",
-   "in_global": false,
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -556,7 +556,7 @@
    "high_incl": false,
    "fixed": "2.18.10",
    "branch": "2.18",
-   "in_global": false,
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -569,7 +569,7 @@
    "high_incl": false,
    "fixed": "2.21.6",
    "branch": "2.21",
-   "in_global": false,
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -582,7 +582,7 @@
    "high_incl": false,
    "fixed": "2.22.2",
    "branch": "2.22",
-   "in_global": false,
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -595,7 +595,7 @@
    "high_incl": false,
    "fixed": "2.18.9",
    "branch": "2.18",
-   "in_global": false,
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -608,7 +608,7 @@
    "high_incl": false,
    "fixed": "2.21.5",
    "branch": "2.21",
-   "in_global": false,
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -621,7 +621,7 @@
    "high_incl": false,
    "fixed": "2.22.1",
    "branch": "2.22",
-   "in_global": false,
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -634,7 +634,7 @@
    "high_incl": false,
    "fixed": "3.1.5",
    "branch": "3.1",
-   "in_global": false,
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -647,7 +647,7 @@
    "high_incl": false,
    "fixed": "3.2.1",
    "branch": "3.2",
-   "in_global": false,
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -660,7 +660,7 @@
    "high_incl": false,
    "fixed": "3.1.6",
    "branch": "3.1",
-   "in_global": false,
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -673,7 +673,7 @@
    "high_incl": false,
    "fixed": "3.2.2",
    "branch": "3.2",
-   "in_global": false,
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -686,7 +686,7 @@
    "high_incl": false,
    "fixed": "2.18.10",
    "branch": "2.18",
-   "in_global": false,
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -699,7 +699,7 @@
    "high_incl": false,
    "fixed": "2.21.6",
    "branch": "2.21",
-   "in_global": false,
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -712,7 +712,137 @@
    "high_incl": false,
    "fixed": "2.22.2",
    "branch": "2.22",
-   "in_global": false,
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
+   "ghsa": "GHSA-wv8q-qhhj-9h54",
+   "group": "com.fasterxml.jackson.core",
+   "art": "jackson-databind",
+   "low": "2.0.0",
+   "low_incl": true,
+   "high": "2.18.10",
+   "high_incl": true,
+   "fixed": "2.18.11",
+   "branch": "2.18",
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
+   "ghsa": "GHSA-wv8q-qhhj-9h54",
+   "group": "com.fasterxml.jackson.core",
+   "art": "jackson-databind",
+   "low": "2.19.0",
+   "low_incl": true,
+   "high": "2.21.6",
+   "high_incl": true,
+   "fixed": "2.21.7",
+   "branch": "2.21",
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
+   "ghsa": "GHSA-wv8q-qhhj-9h54",
+   "group": "com.fasterxml.jackson.core",
+   "art": "jackson-databind",
+   "low": "2.22.0",
+   "low_incl": true,
+   "high": "2.22.2",
+   "high_incl": true,
+   "fixed": "2.22.3",
+   "branch": "2.22",
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
+   "ghsa": "GHSA-wv8q-qhhj-9h54",
+   "group": "tools.jackson.core",
+   "art": "jackson-databind",
+   "low": "3.0.0",
+   "low_incl": true,
+   "high": "3.1.6",
+   "high_incl": true,
+   "fixed": "3.1.7",
+   "branch": "3.1",
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
+   "ghsa": "GHSA-wv8q-qhhj-9h54",
+   "group": "tools.jackson.core",
+   "art": "jackson-databind",
+   "low": "3.2.0",
+   "low_incl": true,
+   "high": "3.2.2",
+   "high_incl": true,
+   "fixed": "3.2.3",
+   "branch": "3.2",
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
+   "ghsa": "GHSA-cxp5-3px4-pw24",
+   "group": "com.fasterxml.jackson.core",
+   "art": "jackson-databind",
+   "low": "2.19.0",
+   "low_incl": true,
+   "high": "2.21.6",
+   "high_incl": true,
+   "fixed": "2.21.7",
+   "branch": "2.21",
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
+   "ghsa": "GHSA-cxp5-3px4-pw24",
+   "group": "tools.jackson.core",
+   "art": "jackson-databind",
+   "low": "3.0.0",
+   "low_incl": true,
+   "high": "3.1.6",
+   "high_incl": true,
+   "fixed": "3.1.7",
+   "branch": "3.1",
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
+   "ghsa": "GHSA-cxp5-3px4-pw24",
+   "group": "tools.jackson.core",
+   "art": "jackson-databind",
+   "low": "3.2.0",
+   "low_incl": true,
+   "high": "3.2.2",
+   "high_incl": true,
+   "fixed": "3.2.3",
+   "branch": "3.2",
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
+   "ghsa": "GHSA-cxp5-3px4-pw24",
+   "group": "com.fasterxml.jackson.core",
+   "art": "jackson-databind",
+   "low": "2.5.0",
+   "low_incl": true,
+   "high": "2.18.10",
+   "high_incl": true,
+   "fixed": "2.18.11",
+   "branch": "2.18",
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
+   "ghsa": "GHSA-cxp5-3px4-pw24",
+   "group": "com.fasterxml.jackson.core",
+   "art": "jackson-databind",
+   "low": "2.22.0",
+   "low_incl": true,
+   "high": "2.22.2",
+   "high_incl": true,
+   "fixed": "2.22.3",
+   "branch": "2.22",
+   "in_global": true,
    "fixed_ok": true
   },
   {
@@ -898,6 +1028,71 @@
    "fixed_ok": true
   },
   {
+   "ghsa": "GHSA-7hhh-6rmp-j9qf",
+   "group": "com.fasterxml.jackson.core",
+   "art": "jackson-core",
+   "low": "2.8.0",
+   "low_incl": true,
+   "high": "2.18.10",
+   "high_incl": true,
+   "fixed": "2.18.11",
+   "branch": "2.18",
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
+   "ghsa": "GHSA-7hhh-6rmp-j9qf",
+   "group": "com.fasterxml.jackson.core",
+   "art": "jackson-core",
+   "low": "2.19.0",
+   "low_incl": true,
+   "high": "2.21.6",
+   "high_incl": true,
+   "fixed": "2.21.7",
+   "branch": "2.21",
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
+   "ghsa": "GHSA-7hhh-6rmp-j9qf",
+   "group": "com.fasterxml.jackson.core",
+   "art": "jackson-core",
+   "low": "2.22.0",
+   "low_incl": true,
+   "high": "2.22.2",
+   "high_incl": true,
+   "fixed": "2.22.3",
+   "branch": "2.22",
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
+   "ghsa": "GHSA-7hhh-6rmp-j9qf",
+   "group": "tools.jackson.core",
+   "art": "jackson-core",
+   "low": "3.0.0",
+   "low_incl": true,
+   "high": "3.1.6",
+   "high_incl": true,
+   "fixed": "3.1.7",
+   "branch": "3.1",
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
+   "ghsa": "GHSA-7hhh-6rmp-j9qf",
+   "group": "tools.jackson.core",
+   "art": "jackson-core",
+   "low": "3.2.0",
+   "low_incl": true,
+   "high": "3.2.2",
+   "high_incl": true,
+   "fixed": "3.2.3",
+   "branch": "3.2",
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
    "ghsa": "GHSA-h46c-h94j-95f3",
    "group": "com.fasterxml.jackson.core",
    "art": "jackson-core",
@@ -907,6 +1102,71 @@
    "high_incl": false,
    "fixed": "2.15.0",
    "branch": "2.15",
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
+   "ghsa": "GHSA-p6pp-m3f8-5c89",
+   "group": "com.fasterxml.jackson.core",
+   "art": "jackson-core",
+   "low": "2.17.0",
+   "low_incl": true,
+   "high": "2.18.10",
+   "high_incl": true,
+   "fixed": "2.18.11",
+   "branch": "2.18",
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
+   "ghsa": "GHSA-p6pp-m3f8-5c89",
+   "group": "com.fasterxml.jackson.core",
+   "art": "jackson-core",
+   "low": "2.19.0",
+   "low_incl": true,
+   "high": "2.21.6",
+   "high_incl": true,
+   "fixed": "2.21.7",
+   "branch": "2.21",
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
+   "ghsa": "GHSA-p6pp-m3f8-5c89",
+   "group": "com.fasterxml.jackson.core",
+   "art": "jackson-core",
+   "low": "2.22.0",
+   "low_incl": true,
+   "high": "2.22.2",
+   "high_incl": true,
+   "fixed": "2.22.3",
+   "branch": "2.22",
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
+   "ghsa": "GHSA-p6pp-m3f8-5c89",
+   "group": "tools.jackson.core",
+   "art": "jackson-core",
+   "low": "3.0.0",
+   "low_incl": true,
+   "high": "3.1.6",
+   "high_incl": true,
+   "fixed": "3.1.7",
+   "branch": "3.1",
+   "in_global": true,
+   "fixed_ok": true
+  },
+  {
+   "ghsa": "GHSA-p6pp-m3f8-5c89",
+   "group": "tools.jackson.core",
+   "art": "jackson-core",
+   "low": "3.2.0",
+   "low_incl": true,
+   "high": "3.2.1",
+   "high_incl": true,
+   "fixed": "3.2.2",
+   "branch": "3.2",
    "in_global": true,
    "fixed_ok": true
   },
@@ -964,6 +1224,16 @@
   }
  ],
  "official": {
+  "GHSA-wv8q-qhhj-9h54": {
+   "cve": "CVE-2026-91776",
+   "sev": "high",
+   "summary": "jackson-databind retains every unknown raw type ID "
+  },
+  "GHSA-cxp5-3px4-pw24": {
+   "cve": "CVE-2026-91777",
+   "sev": "high",
+   "summary": "jackson-databind quadratic forward-reference completion "
+  },
   "GHSA-gx83-3vf8-gh7j": {
    "cve": "CVE-2026-83557",
    "sev": "medium",
@@ -1039,6 +1309,16 @@
    "sev": "medium",
    "summary": "Deeply nested JsonNode throws StackOverflowError for toString()"
   },
+  "GHSA-7hhh-6rmp-j9qf": {
+   "cve": "CVE-2026-89425",
+   "sev": "high",
+   "summary": "UTF8DataInputJsonParser._reportInvalidToken() missing maxErrorTokenLength limit -> unbounded StringBuilder growth (DoS)"
+  },
+  "GHSA-p6pp-m3f8-5c89": {
+   "cve": "CVE-2026-89407",
+   "sev": "high",
+   "summary": "ReDoS: quadratic backtracking in NumberInput.PATTERN_FLOAT via looksLikeValidNumber()"
+  },
   "GHSA-649p-m576-vr99": {
    "cve": "CVE-2026-68498",
    "sev": "high",
@@ -1076,11 +1356,11 @@
   }
  },
  "targets": {
-  "tools.jackson.core|3.1": "3.1.6",
-  "tools.jackson.core|3.2": "3.2.2",
-  "com.fasterxml.jackson.core|2.18": "2.18.10",
-  "com.fasterxml.jackson.core|2.21": "2.21.6",
-  "com.fasterxml.jackson.core|2.22": "2.22.2",
+  "tools.jackson.core|3.1": "3.1.7",
+  "tools.jackson.core|3.2": "3.2.3",
+  "com.fasterxml.jackson.core|2.18": "2.18.11",
+  "com.fasterxml.jackson.core|2.21": "2.21.7",
+  "com.fasterxml.jackson.core|2.22": "2.22.3",
   "com.fasterxml.jackson.core|2.14": "2.14.0",
   "com.fasterxml.jackson.core|3.1": "3.1.4",
   "tools.jackson.core|2.21": "2.21.4"
@@ -1090,19 +1370,7 @@
   "tools.jackson.core|2.21.4"
  ],
  "blind": [
-  "GHSA-649p-m576-vr99",
-  "GHSA-gx83-3vf8-gh7j",
-  "GHSA-q4xh-88c3-wmh7",
-  "GHSA-vvgp-rfg2-7rr6",
-  "GHSA-wjgm-6hv5-3cvf"
+  "GHSA-649p-m576-vr99"
  ],
- "corrections": [
-  {
-   "ghsa": "GHSA-vvgp-rfg2-7rr6",
-   "group": "com.fasterxml.jackson.core",
-   "range": ">= 2.22.0, < 2.22.1",
-   "wrote": "2.21.1",
-   "used": "2.22.1"
-  }
- ]
+ "corrections": []
 }
